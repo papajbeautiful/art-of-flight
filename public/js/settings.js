@@ -290,7 +290,8 @@ class SettingsManager {
           boardColor: '#FFB300',
           maxRows: 10,
           showStatus: true,
-          flipStagger: true
+          flipStagger: true,
+          showGroundAircraft: true
         }
       }
     };
@@ -809,7 +810,8 @@ class SettingsManager {
         { key: 'uiAccentColor', label: 'UI Accent', type: 'color', col: 1 },
         { key: 'maxRows', label: 'Rows', type: 'range', min: 4, max: 16, step: 1, unit: '', col: 1 },
         { key: 'showStatus', label: 'Status Column', type: 'checkbox', col: 2 },
-        { key: 'flipStagger', label: 'Staggered Flips', type: 'checkbox', col: 2 }
+        { key: 'flipStagger', label: 'Staggered Flips', type: 'checkbox', col: 2 },
+        { key: 'showGroundAircraft', label: 'Ground Aircraft', type: 'checkbox', col: 2 }
       ]
     };
   }

@@ -19,7 +19,8 @@ class DeparturesVisualization {
       maxRows: 10,
       boardColor: '#FFB300',
       showStatus: true,
-      flipStagger: true
+      flipStagger: true,
+      showGroundAircraft: true
     };
 
     this._lastRefresh = 0;
@@ -29,7 +30,7 @@ class DeparturesVisualization {
 
   setDisplayOptions(options) {
     if (!options) return;
-    ['maxRows', 'boardColor', 'showStatus', 'flipStagger'].forEach(k => {
+    ['maxRows', 'boardColor', 'showStatus', 'flipStagger', 'showGroundAircraft'].forEach(k => {
       if (options[k] !== undefined) this.options[k] = options[k];
     });
     if (this.layer && options.boardColor) {
@@ -47,9 +48,14 @@ class DeparturesVisualization {
     this.active = false;
   }
 
+  /** Same predicate drives the GROUND status tag and the hide-grounded filter */
+  _isGround(flight) {
+    return flight.onGround || (flight.altitudeFeet ?? 0) <= 0;
+  }
+
   /** Direction tag from the shared inbound heuristic */
   _status(flight) {
-    if (flight.onGround || (flight.altitudeFeet ?? 0) <= 0) return 'GROUND';
+    if (this._isGround(flight)) return 'GROUND';
     const inbound = window.theArtOfFlight?.isInbound?.(flight);
     if (inbound === true) return 'INBOUND';
     if ((flight.distance ?? 99) < 5) return 'OVERHEAD';
@@ -103,6 +109,7 @@ class DeparturesVisualization {
     const rows = flights
       // Some transponders broadcast garbage callsigns (e.g. '@@@@@@@@')
       .filter(f => f.callsign && f.callsign !== 'UNKNOWN' && /[A-Z0-9]/.test(f.callsign))
+      .filter(f => this.options.showGroundAircraft || !this._isGround(f))
       .sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999))
       .slice(0, this.options.maxRows);
 
