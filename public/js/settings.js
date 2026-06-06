@@ -62,7 +62,7 @@ class SettingsManager {
           accentColor: '#00F0FF',
           inboundColor: '',
           outboundColor: '',
-          dotSize: 8,
+          dotSize: 14,
           focusDuration: 3000,
           trackingSpeed: 0.25,
           trackAllAircraft: false

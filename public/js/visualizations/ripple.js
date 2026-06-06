@@ -45,11 +45,12 @@ class RippleVisualization extends AircraftVisualization {
       }
     }
 
-    // Handle background image as liquid texture
-    if (options.backgroundImage !== undefined) {
+    // Handle background image as liquid texture (clearing it reverts to the
+    // generated dark-water texture)
+    if (options.backgroundImage !== undefined && options.backgroundImage !== this.options.backgroundImage) {
       this.options.backgroundImage = options.backgroundImage;
-      if (this.liquidApp && options.backgroundImage) {
-        this.liquidApp.loadImage(options.backgroundImage);
+      if (this.liquidApp) {
+        this.liquidApp.loadImage(options.backgroundImage || this._darkWaterTexture());
       }
     }
   }
@@ -88,9 +89,13 @@ class RippleVisualization extends AircraftVisualization {
 
       this.liquidApp = LiquidBackground(this.rippleCanvas);
 
-      // Use user's background image as liquid texture, or skip for plain dark surface
+      // Liquid surface texture: the user's image, or a generated deep-night
+      // gradient. Without any texture the library renders a stark white
+      // liquid — the worst possible default for a dark ambient display.
       if (this.options.backgroundImage) {
         this.liquidApp.loadImage(this.options.backgroundImage);
+      } else {
+        this.liquidApp.loadImage(this._darkWaterTexture());
       }
 
       this.liquidApp.liquidPlane.material.metalness = this.options.metalness;
@@ -107,6 +112,41 @@ class RippleVisualization extends AircraftVisualization {
       console.error('Failed to initialize Liquid Background:', e);
       this.initialized = false;
     }
+  }
+
+  /**
+   * Generated deep-night water texture (radial gradient with faint nebula
+   * accents) — no external asset, kiosk-safe.
+   */
+  _darkWaterTexture() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 1024;
+    const g = c.getContext('2d');
+
+    const base = g.createRadialGradient(512, 400, 80, 512, 512, 780);
+    base.addColorStop(0, '#1c2f52');
+    base.addColorStop(0.5, '#0c1730');
+    base.addColorStop(1, '#040810');
+    g.fillStyle = base;
+    g.fillRect(0, 0, 1024, 1024);
+
+    // Cool glow pools — luminance variation is what makes the liquid's
+    // displacement visibly catch light
+    const pools = [
+      { x: 280, y: 300, r: 340, color: 'rgba(50, 110, 200, 0.45)' },
+      { x: 760, y: 640, r: 400, color: 'rgba(90, 60, 190, 0.35)' },
+      { x: 560, y: 180, r: 260, color: 'rgba(0, 190, 215, 0.30)' },
+      { x: 180, y: 800, r: 300, color: 'rgba(20, 140, 170, 0.25)' }
+    ];
+    for (const p of pools) {
+      const glow = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+      glow.addColorStop(0, p.color);
+      glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      g.fillStyle = glow;
+      g.fillRect(0, 0, 1024, 1024);
+    }
+
+    return c.toDataURL('image/png');
   }
 
   _blockMouseEvents() {

@@ -256,8 +256,15 @@ class AircraftVisualization {
       // Icon: airborne gated by showAirborneAircraft, ground by showGroundAircraft
       const showIcon = isOnGround ? this.options.showGroundAircraft : this.options.showAirborneAircraft;
       if (showIcon) {
+        // Subtle breathing pulse for aircraft in motion (phase offset by
+        // position so planes don't pulse in sync). Static aircraft — and the
+        // zero-velocity pixel-guard fixture — render at exact scale.
+        let iconScale = this.options.aircraftScale;
+        if (aircraft.velocity > 50) {
+          iconScale *= 1 + 0.05 * Math.sin(Date.now() / 280 + aircraft.x * 0.05);
+        }
         drawAircraftIcon(this.ctx, aircraft.x, aircraft.y, aircraft.heading,
-          aircraft.color, this.options.aircraftIcon, this.options.aircraftScale,
+          aircraft.color, this.options.aircraftIcon, iconScale,
           this.options.dotSize, opacity);
       }
 
@@ -268,22 +275,29 @@ class AircraftVisualization {
   }
 
   drawTrails() {
+    // Contrail look: per-segment alpha ramp (dissolving tail) with a width
+    // taper toward the aircraft, instead of the old flat 0.3-alpha line.
     for (const [id, trail] of this.trails.entries()) {
       if (trail.length < 2) continue;
       const aircraft = this.aircraftPositions.get(id);
       if (!aircraft) continue;
       const trailOpacity = aircraft.flight?.opacity ?? 1;
+      const n = trail.length;
+
       this.ctx.strokeStyle = aircraft.color;
-      this.ctx.lineWidth = 2;
-      this.ctx.globalAlpha = 0.3 * trailOpacity;
-      this.ctx.beginPath();
-      this.ctx.moveTo(trail[0].x, trail[0].y);
-      for (let i = 1; i < trail.length; i++) {
+      this.ctx.lineCap = 'round';
+      for (let i = 1; i < n; i++) {
+        const t = i / n; // 0 = oldest, 1 = newest
+        this.ctx.globalAlpha = 0.45 * t * t * trailOpacity;
+        this.ctx.lineWidth = 0.6 + 1.8 * t;
+        this.ctx.beginPath();
+        this.ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
         this.ctx.lineTo(trail[i].x, trail[i].y);
+        this.ctx.stroke();
       }
-      this.ctx.stroke();
     }
     this.ctx.globalAlpha = 1;
+    this.ctx.lineCap = 'butt';
   }
 
   drawLabel(aircraft, s, bgAlpha) {
@@ -305,46 +319,64 @@ class AircraftVisualization {
 
     const lineH = Math.round(14 * s);
     const labelWidth = Math.round(150 * s);
-    const labelHeight = Math.round(10 * s) + (lineCount * lineH);
+    const labelHeight = Math.round(12 * s) + (lineCount * lineH);
     const labelX = aircraft.x + 20;
     const labelY = aircraft.y - 10 - labelHeight;
+    const pad = Math.round(10 * s);
+    const radius = Math.min(5, labelHeight / 2);
 
+    // Card: rounded background + livery accent bar down the left edge
     this.ctx.fillStyle = getLabelBgStyle(this.options.labelBgColor, bgAlpha);
-    this.ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
+    this.ctx.beginPath();
+    if (this.ctx.roundRect) {
+      this.ctx.roundRect(labelX, labelY, labelWidth, labelHeight, radius);
+    } else {
+      this.ctx.rect(labelX, labelY, labelWidth, labelHeight);
+    }
+    this.ctx.fill();
+
+    this.ctx.fillStyle = aircraft.color;
+    this.ctx.beginPath();
+    if (this.ctx.roundRect) {
+      this.ctx.roundRect(labelX, labelY, 3, labelHeight, [radius, 0, 0, radius]);
+    } else {
+      this.ctx.rect(labelX, labelY, 3, labelHeight);
+    }
+    this.ctx.fill();
 
     let currentY = labelY + lineH;
 
     if (this.options.showCallsigns) {
       this.ctx.fillStyle = aircraft.color;
-      this.ctx.font = `bold ${Math.round(14 * s)}px monospace`;
-      this.ctx.fillText(aircraft.callsign, labelX + 5, currentY);
+      this.ctx.font = `bold ${Math.round(13 * s)}px "Space Mono", monospace`;
+      this.ctx.fillText(aircraft.callsign, labelX + pad, currentY);
       currentY += lineH;
     }
 
     if (routeText) {
-      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
       this.ctx.font = `${Math.round(10 * s)}px "Work Sans", sans-serif`;
-      this.ctx.fillText(routeText, labelX + 5, currentY);
+      this.ctx.fillText(routeText, labelX + pad, currentY);
       currentY += lineH;
     }
 
     if (this.options.showAltitude || this.options.showSpeed) {
-      this.ctx.fillStyle = '#aaa';
-      this.ctx.font = `${Math.round(11 * s)}px monospace`;
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      this.ctx.font = `${Math.round(10 * s)}px "Space Mono", monospace`;
       let dataText = '';
-      if (this.options.showAltitude) dataText += `${Math.round(aircraft.altitude)}ft`;
+      if (this.options.showAltitude) dataText += `${Math.round(aircraft.altitude).toLocaleString()}ft`;
       if (this.options.showSpeed) {
         if (dataText) dataText += ' • ';
         dataText += `${Math.round(aircraft.velocity)}kts`;
       }
-      this.ctx.fillText(dataText, labelX + 5, currentY);
+      this.ctx.fillText(dataText, labelX + pad, currentY);
       currentY += lineH;
     }
 
     if (this.options.showCoordinates) {
-      this.ctx.fillStyle = '#666';
-      this.ctx.font = `${Math.round(9 * s)}px monospace`;
-      this.ctx.fillText(`${aircraft.lat.toFixed(4)}, ${aircraft.lon.toFixed(4)}`, labelX + 5, currentY);
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      this.ctx.font = `${Math.round(9 * s)}px "Space Mono", monospace`;
+      this.ctx.fillText(`${aircraft.lat.toFixed(4)}, ${aircraft.lon.toFixed(4)}`, labelX + pad, currentY);
     }
   }
 
