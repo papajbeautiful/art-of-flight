@@ -72,7 +72,7 @@ Click **⚙️** (top right):
 
 1. Install and run:
    ```bash
-   git clone <your-repo>
+   git clone https://github.com/papajbeautiful/art-of-flight.git
    cd theARTofFLIGHT
    docker-compose up -d
    ```

@@ -1,6 +1,7 @@
 {
   "name": "theartofflight-tooling",
   "private": true,
+  "repository": "github:papajbeautiful/art-of-flight",
   "description": "Dev tooling for theARTofFLIGHT (screenshot harness, fixture capture). Runtime lives in server/.",
   "type": "module",
   "scripts": {
