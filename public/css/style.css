@@ -1557,3 +1557,69 @@ body.ui-idle * {
 .custom-style-textarea {
   font-family: var(--header-font, 'Space Mono'), monospace;
 }
+
+/* ══════════════════════════════════════════════
+   Accessibility & Responsive
+   ══════════════════════════════════════════════ */
+
+/* Visible keyboard focus (outline, not border — no layout shift) */
+.mode-btn:focus-visible,
+.settings-btn:focus-visible,
+.close-btn:focus-visible,
+.btn:focus-visible,
+.tab-btn:focus-visible,
+.icon-select-btn:focus-visible,
+.file-upload-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Reduced motion: collapse decorative animation to near-instant */
+@media (prefers-reduced-motion: reduce) {
+  body { animation-duration: 0.01s; }
+  .flight-item-enter,
+  .flight-item-exit,
+  .board-row-enter,
+  .flap-flip,
+  .signal-overlay .signal-title { animation-duration: 0.01s !important; }
+  .settings-panel,
+  .ui-overlay,
+  .info-overlay,
+  .signal-overlay,
+  .settings-section,
+  .settings-actions { transition-duration: 0.01s !important; }
+}
+
+/* Narrow screens: the 10-button mode bar wraps, settings go full-width */
+@media (max-width: 900px) {
+  .mode-selector {
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 94vw;
+  }
+
+  .settings-panel {
+    max-width: 100vw;
+    border-left: none;
+  }
+
+  .tab-columns {
+    grid-template-columns: 1fr;
+    gap: calc(var(--unit) * 2);
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-content {
+    padding: calc(var(--unit) * 2);
+  }
+
+  .board-legend,
+  .board-row {
+    grid-template-columns: 9ch 1fr 7ch;
+  }
+
+  .board-airline, .board-alt, .board-status {
+    display: none;
+  }
+}
