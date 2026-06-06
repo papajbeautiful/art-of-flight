@@ -262,7 +262,7 @@ class MapVisualization {
       'UAL': '#0033a0', 'AAL': '#c8102e', 'DAL': '#003a70',
       'QTR': '#5c0633', 'UAE': '#c8102e', 'SIA': '#003087',
     };
-    const code = callsign.substring(0, 3);
+    const code = (callsign || '').substring(0, 3);
     return airlineColors[code] || this.displayOptions.accentColor;
   }
 

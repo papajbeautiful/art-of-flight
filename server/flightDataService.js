@@ -114,27 +114,29 @@ class FlightDataService {
    * Parse ADSB.lol aircraft object into our format
    */
   parseAdsbFlight(ac) {
-    const altBaro = ac.alt_baro === 'ground' ? 0 : (ac.alt_baro || null);
+    // Explicit null checks throughout: 0 is a valid altitude (on ground),
+    // velocity (stopped), heading (due north), and vertical rate (level).
+    const altBaro = ac.alt_baro === 'ground' ? 0 : (ac.alt_baro ?? null);
     const callsign = (ac.flight || '').trim() || 'UNKNOWN';
 
     return {
       icao24: ac.hex || '',
       callsign: callsign,
       country: '',
-      latitude: ac.lat || null,
-      longitude: ac.lon || null,
+      latitude: ac.lat ?? null,
+      longitude: ac.lon ?? null,
       baroAltitude: altBaro,
       onGround: ac.alt_baro === 'ground',
-      velocity: ac.gs || null,
-      heading: ac.track || null,
-      verticalRate: ac.baro_rate || null,
+      velocity: ac.gs ?? null,
+      heading: ac.track ?? null,
+      verticalRate: ac.baro_rate ?? null,
       registration: ac.r || '',
       aircraftType: ac.t || '',
       category: ac.category || '',
-      positionAge: ac.seen_pos || null,
-      altitudeFeet: altBaro ? Math.round(altBaro) : null,
-      velocityKnots: ac.gs ? Math.round(ac.gs) : null,
-      velocityKmh: ac.gs ? Math.round(ac.gs * 1.852) : null,
+      positionAge: ac.seen_pos ?? null,
+      altitudeFeet: altBaro != null ? Math.round(altBaro) : null,
+      velocityKnots: ac.gs != null ? Math.round(ac.gs) : null,
+      velocityKmh: ac.gs != null ? Math.round(ac.gs * 1.852) : null,
       ...this.getAirlineInfo(callsign)
     };
   }

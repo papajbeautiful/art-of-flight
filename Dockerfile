@@ -1,18 +1,16 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
-# Set working directory
+# Mirror the repo layout: server.js resolves ../public relative to itself,
+# so server/ and public/ must be siblings inside the image too.
 WORKDIR /app
 
-# Copy package files
-COPY server/package*.json ./
+# Install dependencies first (cached layer; .dockerignore keeps host
+# node_modules out of the build context)
+COPY server/package*.json ./server/
+RUN cd server && npm ci --omit=dev
 
-# Install dependencies
-RUN npm install --production
-
-# Copy server files
-COPY server/ ./
-
-# Copy public files
+# Copy application code
+COPY server/ ./server/
 COPY public/ ./public/
 
 # Expose port
@@ -23,4 +21,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start the server
-CMD ["node", "server.js"]
+CMD ["node", "server/server.js"]

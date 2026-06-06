@@ -1,0 +1,16 @@
+# Never copy host node_modules into the image — npm install inside the
+# image builds platform-correct binaries; host copies (e.g. Windows) clobber them.
+**/node_modules
+
+# Dev tooling and metadata
+.git
+.claude
+tools
+*.md
+.env
+.env.*
+server/fixtures/raw*.json
+docker-compose.yml
+Dockerfile
+start.sh
+start.bat

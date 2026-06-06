@@ -46,8 +46,10 @@ class PositionPredictor {
       }
 
       // Always update kinematics (heading/speed can change between position updates)
-      if (heading) a.heading = heading;
-      if (velocityKnots) a.velocity = velocityKnots;
+      // Explicit null checks: heading 0 (due north) and velocity 0 (stopped)
+      // are valid values — `if (heading)` froze stale kinematics on them.
+      if (heading !== undefined && heading !== null) a.heading = heading;
+      if (velocityKnots !== undefined && velocityKnots !== null) a.velocity = velocityKnots;
     }
   }
 
@@ -97,6 +99,11 @@ class PositionPredictor {
       lat: a.displayLat,
       lon: a.displayLon
     };
+  }
+
+  /** Remove a single aircraft (e.g. after its fade-out completes) */
+  remove(id) {
+    this.aircraft.delete(id);
   }
 
   cleanup(currentTime, maxAge = 60000) {

@@ -150,9 +150,11 @@ class FlightManager {
         state.opacity = 1 - progress;
 
         // Fully faded out — remove from tracking
+        // (was cleanup(now, 0), which wiped EVERY aircraft's predictor state
+        // and caused all remaining planes to snap on their next update)
         if (state.opacity <= 0) {
           this.aircraftState.delete(id);
-          this.predictor.cleanup(now, 0); // allow predictor to clean up too
+          this.predictor.remove(id);
           continue;
         }
       }
