@@ -37,6 +37,9 @@ app.get('/api/flights', async (req, res) => {
         success: true,
         count: fixture.flights.length,
         flights: fixture.flights,
+        stale: false,
+        dataAgeSeconds: 0,
+        source: 'fixture',
         timestamp: Date.now()
       });
     }
@@ -49,7 +52,7 @@ app.get('/api/flights', async (req, res) => {
       });
     }
 
-    const flights = await flightService.getFlightsInRadius(
+    const result = await flightService.getFlightsInRadius(
       parseFloat(lat),
       parseFloat(lon),
       parseFloat(radius)
@@ -57,8 +60,11 @@ app.get('/api/flights', async (req, res) => {
 
     res.json({
       success: true,
-      count: flights.length,
-      flights,
+      count: result.flights.length,
+      flights: result.flights,
+      stale: result.stale,
+      dataAgeSeconds: result.dataAgeSeconds,
+      source: result.source,
       timestamp: Date.now()
     });
   } catch (error) {
