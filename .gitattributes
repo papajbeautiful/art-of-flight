@@ -1,0 +1,12 @@
+# Line-ending guarantees independent of the cloner's core.autocrlf:
+# - .bat must be CRLF (cmd misparses goto labels in LF-only files)
+# - .sh must be LF (CRLF after the shebang breaks bash on Linux/Pi)
+* text=auto
+*.bat text eol=crlf
+*.sh text eol=lf
+
+# Binary assets — never normalize
+*.png binary
+*.woff2 binary
+*.pmtiles binary
+*.ico binary
