@@ -7,6 +7,14 @@ class SettingsManager {
     this.callbacks = [];
     this.currentTab = this.settings.mode || 'ripple';
 
+    // Built-in background library (vendored CC0/public-domain images).
+    // Loaded async; the settings panel renders on open, well after this.
+    this.bgLibrary = [];
+    fetch('/backgrounds/manifest.json')
+      .then(r => r.ok ? r.json() : [])
+      .then(list => { this.bgLibrary = Array.isArray(list) ? list : []; })
+      .catch(() => {});
+
     this.modeLabels = {
       ripple: 'Ripple', reality: 'Reality', birds: 'Grid',
       constellation: 'Waves', tubes: 'Tubes', map: 'Map', patterns: 'Patterns',
@@ -988,7 +996,22 @@ class SettingsManager {
     const url = modeSettings.backgroundImage || '';
     const hasPreview = !!url;
 
+    // Built-in library: a "None" tile plus every vendored image.
+    // Selecting one stores its path — same plumbing as a custom URL.
+    const tiles = [
+      `<button class="bg-tile bg-tile-none ${url ? '' : 'active'}" data-bg-pick="" title="No background">×</button>`,
+      ...this.bgLibrary.map(bg => `
+        <button class="bg-tile ${url === bg.file ? 'active' : ''}" data-bg-pick="${bg.file}"
+                title="${bg.title.replace(/"/g, '&quot;')} — ${bg.artist.replace(/"/g, '&quot;')} (${bg.license})">
+          <img src="${bg.thumb}" alt="" loading="lazy">
+        </button>`)
+    ].join('');
+
     return `
+      <div class="input-group">
+        <label>Background Gallery</label>
+        <div class="bg-gallery">${tiles}</div>
+      </div>
       <div class="input-group">
         <label>Image URL</label>
         <div class="bg-input-row">
@@ -1066,6 +1089,10 @@ class SettingsManager {
             <div class="credit-item">
               <span class="credit-mode">WebGL</span>
               <span class="credit-info">Three.js via threejs-components</span>
+            </div>
+            <div class="credit-item">
+              <span class="credit-mode">Backgrounds</span>
+              <span class="credit-info">CC0 / public-domain images via <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a> (NASA, NOAA, BLM, and others — per-image credits in backgrounds/manifest.json)</span>
             </div>
           </div>
         </div>
@@ -1242,10 +1269,28 @@ class SettingsManager {
     const bgPreview = container.querySelector('[data-bg-preview]');
     const bgPreviewImg = container.querySelector('[data-bg-preview-img]');
 
+    // Built-in gallery tiles
+    const bgTiles = container.querySelectorAll('[data-bg-pick]');
+    const syncTiles = (url) => bgTiles.forEach(t => t.classList.toggle('active', t.dataset.bgPick === url));
+    bgTiles.forEach(tile => {
+      tile.addEventListener('click', () => {
+        const url = tile.dataset.bgPick;
+        this.setModeSetting(mode, 'backgroundImage', url);
+        syncTiles(url);
+        if (bgUrl) bgUrl.value = '';
+        if (bgPreview && bgPreviewImg) {
+          if (url) { bgPreviewImg.src = url; bgPreview.classList.remove('hidden'); }
+          else bgPreview.classList.add('hidden');
+        }
+        this.notifyChange();
+      });
+    });
+
     if (bgUrl) {
       bgUrl.addEventListener('change', (e) => {
         const url = e.target.value.trim();
         this.setModeSetting(mode, 'backgroundImage', url);
+        syncTiles(url);
         if (bgPreview && bgPreviewImg) {
           if (url) { bgPreviewImg.src = url; bgPreview.classList.remove('hidden'); }
           else bgPreview.classList.add('hidden');
@@ -1262,6 +1307,7 @@ class SettingsManager {
         reader.onload = (ev) => {
           const dataUrl = ev.target.result;
           this.setModeSetting(mode, 'backgroundImage', dataUrl);
+          syncTiles(dataUrl);
           if (bgUrl) bgUrl.value = '';
           if (bgPreview && bgPreviewImg) { bgPreviewImg.src = dataUrl; bgPreview.classList.remove('hidden'); }
           this.notifyChange();
@@ -1273,6 +1319,7 @@ class SettingsManager {
     if (bgClear) {
       bgClear.addEventListener('click', () => {
         this.setModeSetting(mode, 'backgroundImage', '');
+        syncTiles('');
         if (bgUrl) bgUrl.value = '';
         if (bgPreview) bgPreview.classList.add('hidden');
         this.notifyChange();

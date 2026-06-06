@@ -52,6 +52,14 @@ public/js/
     birds.js      Grid cells ("Grid" in UI)   constellation.js  Waves
     tubes.js      WebGL 3D tubes              map.js  MapLibre + pmtiles
     patterns.js   Koblin-style accumulation — deliberately NOT on the base class
+    contrails.js  Long-exposure sky           radar.js  CRT phosphor sweep
+    departures.js Split-flap DOM board — NOT on the base class (consumes the
+                  flight list, not screen coords; same outer interface)
+public/backgrounds/
+  30 vendored CC0/public-domain images + manifest.json (drives the settings
+  gallery; per-image attribution lives here). Refresh/extend the library
+  with `node tools/fetch-backgrounds.mjs` (Wikimedia Commons, license-
+  filtered to CC0/PD only — this is a public repo, keep it that way).
 ```
 
 ## Hard-won invariants — do not regress

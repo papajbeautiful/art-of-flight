@@ -48,6 +48,10 @@ to run 24/7 on a TV or kiosk display.
   beyond the flight APIs themselves
 - 🖥️ **4K-crisp** — all canvases render at native device resolution
 - 🎛️ **Deep per-mode settings** — tabbed UI, persisted in localStorage
+- 🖼️ **30 built-in backgrounds** — CC0/public-domain night skies, auroras,
+  nebulae, oceans, antique charts (per-image credits in
+  `public/backgrounds/manifest.json`) — selectable per mode, or upload
+  your own image
 - 🐳 **Docker-ready**
 
 ## 🚀 Quick Start
