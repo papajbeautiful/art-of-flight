@@ -37,10 +37,6 @@ class TheArtOfFlight {
     // Per-mode background images: { mode: { image: Image, url: string } }
     this.backgroundImages = {};
 
-    // Google Maps API state
-    this.googleMapsLoaded = false;
-    this.googleMapsLoading = false;
-
     // Initialize visualizations
     this.visualizations = {
       ripple: new RippleVisualization(this.canvas, this.ctx),
@@ -92,7 +88,6 @@ class TheArtOfFlight {
       }
     });
 
-    this.fetchServerConfig();
     this.start();
   }
 
@@ -123,12 +118,6 @@ class TheArtOfFlight {
 
     // Update per-mode background images
     this.updateBackgroundImages(settings);
-
-    // Load Google Maps API if key is available
-    const apiKey = settings.googleMapsApiKey;
-    if (apiKey && !this.googleMapsLoaded && !this.googleMapsLoading) {
-      this.loadGoogleMapsAPI(apiKey);
-    }
 
     // Update visualization mode with transition
     if (this.currentMode !== settings.mode) {
@@ -902,55 +891,6 @@ class TheArtOfFlight {
     this.ctx.globalAlpha = 0.3;
     this.ctx.drawImage(img, drawX, drawY, drawW, drawH);
     this.ctx.globalAlpha = 1;
-  }
-
-  async loadGoogleMapsAPI(apiKey) {
-    if (this.googleMapsLoaded || this.googleMapsLoading) return;
-    this.googleMapsLoading = true;
-
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=__gmapsReady`;
-      script.async = true;
-      script.defer = true;
-
-      // Google calls this when the API is fully ready
-      window.__gmapsReady = () => {
-        this.googleMapsLoaded = true;
-        this.googleMapsLoading = false;
-        console.log('Google Maps API loaded');
-
-        if (this.visualizations.map && this.visualizations.map.initGoogleMap) {
-          this.visualizations.map.initGoogleMap();
-          if (this.currentMode === 'map') {
-            this.visualizations.map.showMap();
-          }
-        }
-
-        resolve();
-      };
-
-      script.onerror = () => {
-        this.googleMapsLoading = false;
-        console.error('Failed to load Google Maps API');
-        reject(new Error('Failed to load Google Maps API'));
-      };
-      document.head.appendChild(script);
-    });
-  }
-
-  async fetchServerConfig() {
-    try {
-      const response = await fetch('/api/config');
-      const config = await response.json();
-      if (config.googleMapsApiKey && !this.settingsManager.get('googleMapsApiKey')) {
-        this.settingsManager.set('googleMapsApiKey', config.googleMapsApiKey);
-        this.settingsManager.updateUI();
-        this.loadGoogleMapsAPI(config.googleMapsApiKey);
-      }
-    } catch (e) {
-      // Server config is optional
-    }
   }
 
   easeInOutCubic(t) {

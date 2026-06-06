@@ -78,13 +78,6 @@ app.get('/api/flights', async (req, res) => {
   }
 });
 
-// Config endpoint - passes server-side config to client
-app.get('/api/config', (req, res) => {
-  res.json({
-    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || ''
-  });
-});
-
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({

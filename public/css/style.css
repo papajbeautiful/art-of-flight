@@ -71,23 +71,15 @@ body {
   background: radial-gradient(ellipse at center, #0d1117 0%, #060608 50%, #020203 100%);
 }
 
-/* ── Google Map (behind canvas) ── */
-#googleMap {
+/* ── Map layer (MapLibre, behind canvas) ── */
+#mapContainer {
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100vh;
   z-index: 0;
   display: none;
-}
-
-/* Hide Google Maps logo, attribution, and footer */
-#googleMap .gm-style-cc,
-#googleMap .gmnoprint,
-#googleMap a[href*="maps.google.com"],
-#googleMap a[href*="google.com/maps"],
-#googleMap .gm-style > div > a {
-  display: none !important;
+  background: #0a0a0a;
 }
 
 canvas {

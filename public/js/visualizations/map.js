@@ -1,6 +1,10 @@
 /**
- * Map Mode: Google Maps with Snazzy Map styles
- * Aircraft, trails, labels drawn on canvas overlay
+ * Map Mode: MapLibre GL over self-hosted Protomaps vector tiles
+ * Aircraft, trails, labels drawn on the canvas overlay above the map.
+ *
+ * Fully self-contained: maplibre-gl + pmtiles are vendored, the regional
+ * tile archive is served by our own Express server, and the styles are
+ * symbol-free (no glyph/sprite assets). No API key, no network dependency.
  */
 class MapVisualization extends AircraftVisualization {
   constructor(canvas, ctx) {
@@ -18,66 +22,90 @@ class MapVisualization extends AircraftVisualization {
       labelFormat: '{airline} {type} to {destination}'
     });
 
-    // Google Map state
-    this.googleMap = null;
-    this.mapDiv = document.getElementById('googleMap');
-    this.currentStyleKey = 'assassins_creed';
+    this.map = null;
+    this.mapDiv = document.getElementById('mapContainer');
+    this.currentStyleKey = 'dark';
     this.mapSynced = false;
     this.syncPending = false;
+    this.loading = false;
   }
 
   onOptionsChanged(options) {
-    // Handle map style changes
     if (options.mapStyle !== undefined) {
       this.setMapStyle(options.mapStyle);
     }
-
-    // Handle custom map style JSON
-    if (options.customMapStyle && options.mapStyle === 'custom') {
-      this.applyCustomStyle(options.customMapStyle);
-    }
   }
 
-  applyCustomStyle(jsonString) {
-    try {
-      const parsed = JSON.parse(jsonString);
-      if (Array.isArray(parsed)) {
-        if (typeof setCustomMapStyle === 'function') {
-          setCustomMapStyle(parsed);
-        }
-        if (this.googleMap) {
-          this.googleMap.setOptions({ styles: parsed });
-        }
-      }
-    } catch (e) {
-      console.error('Invalid custom map style JSON:', e);
-    }
+  static styleUrl(key) {
+    return `/vendor/maplibre/style-${key}.json`;
   }
 
-  initGoogleMap() {
-    if (this.googleMap || typeof google === 'undefined') return;
+  static validStyles() {
+    return ['dark', 'black', 'grayscale'];
+  }
 
-    const style = MAP_STYLES[this.currentStyleKey] || MAP_STYLES.assassins_creed;
-
-    this.googleMap = new google.maps.Map(this.mapDiv, {
-      center: { lat: -33.8914, lng: 151.1382 },
-      zoom: 12,
-      disableDefaultUI: true,
-      gestureHandling: 'none',
-      keyboardShortcuts: false,
-      clickableIcons: false,
-      styles: style.styles
+  _loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector(`script[src="${src}"]`);
+      if (existing) return resolve();
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error(`Failed to load ${src}`));
+      document.head.appendChild(script);
     });
+  }
 
-    console.log('Google Map initialized');
+  _loadCss(href) {
+    if (document.querySelector(`link[href="${href}"]`)) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    document.head.appendChild(link);
+  }
+
+  async initMapLibre() {
+    if (this.map || this.loading || !this.mapDiv) return;
+    this.loading = true;
+
+    try {
+      // Lazy-load the vendored map stack only when map mode is first shown
+      this._loadCss('/vendor/maplibre/maplibre-gl.css');
+      await this._loadScript('/vendor/maplibre/maplibre-gl.js');
+      await this._loadScript('/vendor/maplibre/pmtiles.js');
+
+      if (!MapVisualization._protocolRegistered) {
+        const protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol('pmtiles', protocol.tile);
+        MapVisualization._protocolRegistered = true;
+      }
+
+      this.map = new maplibregl.Map({
+        container: this.mapDiv,
+        style: MapVisualization.styleUrl(this.currentStyleKey),
+        center: [151.1382, -33.8914],
+        zoom: 10,
+        attributionControl: false, // attribution lives in the About tab
+        interactive: false         // kiosk display — the overlay owns the view
+      });
+
+      console.log('MapLibre initialized');
+    } catch (e) {
+      console.error('Failed to initialize MapLibre:', e);
+      this.map = null;
+    } finally {
+      this.loading = false;
+    }
   }
 
   showMap() {
     if (!this.mapDiv) return;
     this.mapDiv.style.display = 'block';
 
-    if (!this.googleMap && typeof google !== 'undefined') {
-      this.initGoogleMap();
+    if (!this.map) {
+      this.initMapLibre();
+    } else {
+      this.map.resize();
     }
 
     this.mapSynced = false;
@@ -90,63 +118,46 @@ class MapVisualization extends AircraftVisualization {
   }
 
   syncMapView() {
-    if (!this.googleMap || !window.theArtOfFlight?.coordSystem?.isLocked) return;
+    if (!this.map || !window.theArtOfFlight?.coordSystem?.isLocked) return;
 
-    const coordSystem = window.theArtOfFlight.coordSystem;
-    const bounds = coordSystem.getVisibleBounds();
-
-    const mapBounds = new google.maps.LatLngBounds(
-      new google.maps.LatLng(bounds.south, bounds.west),
-      new google.maps.LatLng(bounds.north, bounds.east)
-    );
+    const bounds = window.theArtOfFlight.coordSystem.getVisibleBounds();
 
     this.syncPending = true;
-    this.googleMap.fitBounds(mapBounds, 0);
+    this.map.fitBounds(
+      [[bounds.west, bounds.south], [bounds.east, bounds.north]],
+      { padding: 0, duration: 0 }
+    );
 
-    // Wait for fitBounds to take effect before marking synced
-    google.maps.event.addListenerOnce(this.googleMap, 'idle', () => {
+    this.map.once('idle', () => {
       this.mapSynced = true;
       this.syncPending = false;
     });
   }
 
   setMapStyle(styleKey) {
-    if (styleKey === this.currentStyleKey && this.googleMap) return;
+    // Old installs may have stored Google/Snazzy style keys — map them to dark
+    if (!MapVisualization.validStyles().includes(styleKey)) styleKey = 'dark';
+    if (styleKey === this.currentStyleKey && this.map) return;
     this.currentStyleKey = styleKey;
 
-    if (this.googleMap && MAP_STYLES[styleKey]) {
-      this.googleMap.setOptions({ styles: MAP_STYLES[styleKey].styles });
+    if (this.map) {
+      this.map.setStyle(MapVisualization.styleUrl(styleKey));
     }
   }
 
   update(flights) {
-    if (this.googleMap && !this.mapSynced && !this.syncPending) {
+    if (this.map && !this.mapSynced && !this.syncPending) {
       this.syncMapView();
     }
     super.update(flights);
   }
 
   latLonToScreen(lat, lon) {
-    // Use Google Maps' own projection for pixel-perfect alignment
-    if (this.googleMap) {
-      const projection = this.googleMap.getProjection();
-      const bounds = this.googleMap.getBounds();
-      if (projection && bounds) {
-        const ne = bounds.getNorthEast();
-        const sw = bounds.getSouthWest();
-        const topRight = projection.fromLatLngToPoint(ne);
-        const bottomLeft = projection.fromLatLngToPoint(sw);
-        const point = projection.fromLatLngToPoint(new google.maps.LatLng(lat, lon));
-
-        const w = this.canvas.clientWidth || this.canvas.width;
-        const h = this.canvas.clientHeight || this.canvas.height;
-        const x = (point.x - bottomLeft.x) / (topRight.x - bottomLeft.x) * w;
-        const y = (point.y - topRight.y) / (bottomLeft.y - topRight.y) * h;
-        return { x, y };
-      }
+    // MapLibre's own projection keeps the overlay pixel-aligned to the tiles
+    if (this.map) {
+      const p = this.map.project([lon, lat]);
+      return { x: p.x, y: p.y };
     }
-
-    // Fallback to the shared coordinate system
     return super.latLonToScreen(lat, lon);
   }
 

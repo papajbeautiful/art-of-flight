@@ -23,7 +23,6 @@ class SettingsManager {
       radius: 30,
       mode: 'ripple',
       showInfoPanel: true,
-      googleMapsApiKey: '',
       updateInterval: 2,
       maxFlights: 50,
       // UI styling
@@ -196,8 +195,7 @@ class SettingsManager {
           trackAllAircraft: false
         },
         map: {
-          mapStyle: 'assassins_creed',
-          customMapStyle: '',
+          mapStyle: 'dark',
           uiAccentColor: '#00F0FF',
           showHomeMarker: false,
           homeMarkerColor: '#FF0055',
@@ -220,8 +218,7 @@ class SettingsManager {
           labelBgColor: '#000000',
           accentColor: '#00F0FF',
           inboundColor: '',
-          outboundColor: '',
-          googleMapsApiKey: ''
+          outboundColor: ''
         },
         patterns: {
           backgroundImage: '',
@@ -284,8 +281,10 @@ class SettingsManager {
       }
     });
 
-    if (parsed.mapStyle !== undefined && !parsed.modeSettings) {
-      merged.modeSettings.map.mapStyle = parsed.mapStyle;
+    // Old installs stored Google/Snazzy style keys — reset them to 'dark'
+    const validMapStyles = ['dark', 'black', 'grayscale'];
+    if (!validMapStyles.includes(merged.modeSettings.map.mapStyle)) {
+      merged.modeSettings.map.mapStyle = 'dark';
     }
 
     if (parsed.backgroundImage && typeof parsed.backgroundImage === 'string') {
@@ -679,18 +678,10 @@ class SettingsManager {
       ],
       map: [
         { key: 'mapStyle', label: 'Map Style', type: 'select', col: 1, options: [
-          { value: 'assassins_creed', label: "Assassin's Creed IV" },
-          { value: 'carmela', label: 'Carmela' },
-          { value: '23_sul', label: '23 SUL' },
-          { value: 'arch', label: 'Arch' },
-          { value: 'vibrant_village', label: 'Vibrant Village' },
-          { value: 'wy', label: 'WY' },
-          { value: 'subtle_greyscale', label: 'Subtle Greyscale' },
-          { value: 'custom', label: 'Custom JSON' }
+          { value: 'dark', label: 'Dark' },
+          { value: 'black', label: 'Black' },
+          { value: 'grayscale', label: 'Grayscale' }
         ]},
-        { key: 'customMapStyle', label: 'Custom Style JSON', type: 'textarea', col: 1,
-          placeholder: 'Paste Snazzy Maps JSON...', showWhen: { key: 'mapStyle', value: 'custom' } },
-        { key: 'googleMapsApiKey', label: 'Google Maps API Key', type: 'text', col: 1, placeholder: 'API key...', global: true },
         ...homeMarkerFields(),
         ...colorFields('map'),
         ...overlayFields('map')
@@ -957,12 +948,12 @@ class SettingsManager {
           <div class="credits-list">
             <div class="credit-item">
               <span class="credit-mode">Positions</span>
-              <span class="credit-info">ADSB.lol — Real-time ADS-B aircraft data</span>
+              <span class="credit-info">adsb.lol / adsb.fi / airplanes.live — Real-time ADS-B aircraft data</span>
               <span class="credit-license">Open Data</span>
             </div>
             <div class="credit-item">
               <span class="credit-mode">Routes</span>
-              <span class="credit-info">OpenSky Network — Flight route lookup</span>
+              <span class="credit-info">adsbdb.com — Flight route lookup</span>
               <span class="credit-license">Open Data</span>
             </div>
           </div>
@@ -971,7 +962,7 @@ class SettingsManager {
           <div class="credits-list">
             <div class="credit-item">
               <span class="credit-mode">Maps</span>
-              <span class="credit-info">Google Maps + Snazzy Maps styles</span>
+              <span class="credit-info">MapLibre GL + Protomaps vector tiles &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</span>
             </div>
             <div class="credit-item">
               <span class="credit-mode">WebGL</span>

@@ -8,8 +8,13 @@
     "compare": "node tools/compare-screenshots.mjs"
   },
   "devDependencies": {
-    "playwright-core": "^1.49.0",
     "pixelmatch": "^6.0.0",
+    "playwright-core": "^1.49.0",
     "pngjs": "^7.0.0"
+  },
+  "dependencies": {
+    "@protomaps/basemaps": "^5.7.2",
+    "maplibre-gl": "^5.24.0",
+    "pmtiles": "^4.4.1"
   }
 }

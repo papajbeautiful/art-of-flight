@@ -32,7 +32,7 @@ const fixtureArg = args.find(a => a.startsWith('--fixture='));
 const FIXTURE = fixtureArg ? fixtureArg.split('=')[1] : '1'; // '1' static (pixel guard) | 'moving' (motion review)
 const settleArg = args.find(a => a.startsWith('--settle='));
 
-const ALL_MODES = ['ripple', 'reality', 'birds', 'constellation', 'tubes', 'patterns'];
+const ALL_MODES = ['ripple', 'reality', 'birds', 'constellation', 'tubes', 'map', 'patterns'];
 const MODES = modesArg ? modesArg.split('=')[1].split(',') : ALL_MODES;
 const PORT = portArg ? parseInt(portArg.split('=')[1], 10) : 3177;
 // > 3s idle-fade + 0.8s chrome fade + fade-in/easing convergence; the moving
