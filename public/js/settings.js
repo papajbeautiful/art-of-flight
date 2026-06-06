@@ -9,7 +9,8 @@ class SettingsManager {
 
     this.modeLabels = {
       ripple: 'Ripple', reality: 'Reality', birds: 'Grid',
-      constellation: 'Waves', tubes: 'Tubes', map: 'Map', patterns: 'Patterns'
+      constellation: 'Waves', tubes: 'Tubes', map: 'Map', patterns: 'Patterns',
+      contrails: 'Contrails', radar: 'Radar', departures: 'Board'
     };
 
     this.initUI();
@@ -235,6 +236,61 @@ class SettingsManager {
           showLeadingDot: true,
           dotSize: 2.5,
           showStats: true
+        },
+        contrails: {
+          uiAccentColor: '#FFC98C',
+          showHomeMarker: false,
+          homeMarkerColor: '#FF0055',
+          homeMarkerIcon: 'crosshair',
+          skyMode: 'auto',
+          trailWidth: 2.0,
+          trailGlow: 1.0,
+          dissolveMinutes: 4,
+          showLeadingGlow: true,
+          inboundLabelFormat: '{airline} {type} from {origin}',
+          outboundLabelFormat: '{airline} {type} to {destination}',
+          showTrails: false,
+          showCallsigns: false,
+          showAltitude: false,
+          showSpeed: false,
+          showRoute: false,
+          showCoordinates: false,
+          showAirborneAircraft: false,
+          showGroundAircraft: false,
+          aircraftIcon: 'glow',
+          trailLength: 100,
+          aircraftScale: 1.0,
+          labelTextScale: 1.0,
+          labelBgOpacity: 0.7,
+          labelBgColor: '#000000',
+          accentColor: '#FFE8C8',
+          inboundColor: '',
+          outboundColor: '',
+          dotSize: 8
+        },
+        radar: {
+          uiAccentColor: '#3DFF8C',
+          showHomeMarker: false,
+          homeMarkerColor: '#FF0055',
+          homeMarkerIcon: 'crosshair',
+          sweepSeconds: 6,
+          phosphorColor: '#3DFF8C',
+          ringCount: 4,
+          showSweep: true,
+          showRings: true,
+          showScanlines: true,
+          blipPersistence: 0.85,
+          showCallsigns: true,
+          showAltitude: false,
+          showGroundAircraft: false,
+          labelTextScale: 1.0
+        },
+        departures: {
+          uiAccentColor: '#FFB300',
+          boardColor: '#FFB300',
+          maxRows: 10,
+          showStatus: true,
+          flipStagger: true
         }
       }
     };
@@ -403,6 +459,9 @@ class SettingsManager {
       { id: 'tubes', label: 'Tubes' },
       { id: 'map', label: 'Map' },
       { id: 'patterns', label: 'Patterns' },
+      { id: 'contrails', label: 'Contrails' },
+      { id: 'radar', label: 'Radar' },
+      { id: 'departures', label: 'Board' },
       { id: 'about', label: 'About' }
     ];
 
@@ -547,8 +606,8 @@ class SettingsManager {
   getModeSchemas() {
     // Common overlay fields (column 2)
     const overlayFields = (mode) => {
-      const hasAircraftIcon = !['patterns'].includes(mode);
-      const hasDotSize = ['ripple', 'birds', 'constellation', 'tubes'].includes(mode);
+      const hasAircraftIcon = !['patterns', 'radar', 'departures'].includes(mode);
+      const hasDotSize = ['ripple', 'birds', 'constellation', 'tubes', 'contrails'].includes(mode);
       const hasTrackAll = ['ripple', 'tubes'].includes(mode);
 
       const fields = [];
@@ -713,6 +772,44 @@ class SettingsManager {
         { key: 'showGroundAircraft', label: 'Ground Aircraft', type: 'checkbox', col: 2 },
         { key: 'resetPatterns', label: 'Reset Patterns', type: 'button', col: 2,
           buttonClass: 'btn-danger btn-sm', description: 'Clears accumulated flight pattern artwork' }
+      ],
+      contrails: [
+        { key: 'skyMode', label: 'Sky', type: 'select', col: 1, options: [
+          { value: 'auto', label: 'Follow Time of Day' },
+          { value: 'night', label: 'Night' },
+          { value: 'dawn', label: 'Dawn' },
+          { value: 'day', label: 'Day' },
+          { value: 'dusk', label: 'Dusk' }
+        ]},
+        { key: 'trailWidth', label: 'Trail Width', type: 'range', min: 0.5, max: 6, step: 0.5, unit: 'px', col: 1 },
+        { key: 'trailGlow', label: 'Trail Glow', type: 'range', min: 0.2, max: 3, step: 0.1, unit: 'x', col: 1 },
+        { key: 'dissolveMinutes', label: 'Dissolve Time', type: 'range', min: 1, max: 20, step: 1, unit: 'min', col: 1 },
+        { key: 'showLeadingGlow', label: 'Leading Glint', type: 'checkbox', col: 1 },
+        ...homeMarkerFields(),
+        ...colorFields('contrails'),
+        ...overlayFields('contrails')
+      ],
+      radar: [
+        { key: 'sweepSeconds', label: 'Sweep Period', type: 'range', min: 2, max: 15, step: 1, unit: 's', col: 1 },
+        { key: 'phosphorColor', label: 'Phosphor', type: 'color', col: 1 },
+        { key: 'ringCount', label: 'Range Rings', type: 'range', min: 2, max: 8, step: 1, unit: '', col: 1 },
+        { key: 'blipPersistence', label: 'Blip Persistence', type: 'range', min: 0.3, max: 1.5, step: 0.05, unit: '', col: 1 },
+        { key: 'uiAccentColor', label: 'UI Accent', type: 'color', col: 1 },
+        ...homeMarkerFields(),
+        { key: 'showSweep', label: 'Sweep Beam', type: 'checkbox', col: 2 },
+        { key: 'showRings', label: 'Rings & Ticks', type: 'checkbox', col: 2 },
+        { key: 'showScanlines', label: 'CRT Scanlines', type: 'checkbox', col: 2 },
+        { key: 'showCallsigns', label: 'Callsign Tags', type: 'checkbox', col: 2 },
+        { key: 'showAltitude', label: 'Altitude Tags', type: 'checkbox', col: 2 },
+        { key: 'showGroundAircraft', label: 'Ground Aircraft', type: 'checkbox', col: 2 },
+        { key: 'labelTextScale', label: 'Tag Scale', type: 'range', min: 0.5, max: 2.0, step: 0.1, unit: 'x', col: 2 }
+      ],
+      departures: [
+        { key: 'boardColor', label: 'Board Color', type: 'color', col: 1 },
+        { key: 'uiAccentColor', label: 'UI Accent', type: 'color', col: 1 },
+        { key: 'maxRows', label: 'Rows', type: 'range', min: 4, max: 16, step: 1, unit: '', col: 1 },
+        { key: 'showStatus', label: 'Status Column', type: 'checkbox', col: 2 },
+        { key: 'flipStagger', label: 'Staggered Flips', type: 'checkbox', col: 2 }
       ]
     };
   }

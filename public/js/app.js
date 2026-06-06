@@ -45,7 +45,10 @@ class TheArtOfFlight {
       constellation: new ConstellationVisualization(this.canvas, this.ctx),
       tubes: new TubesVisualization(this.canvas, this.ctx),
       map: new MapVisualization(this.canvas, this.ctx),
-      patterns: new PatternsVisualization(this.canvas, this.ctx)
+      patterns: new PatternsVisualization(this.canvas, this.ctx),
+      contrails: new ContrailsVisualization(this.canvas, this.ctx),
+      radar: new RadarVisualization(this.canvas, this.ctx),
+      departures: new DeparturesVisualization(this.canvas, this.ctx)
     };
 
     // ?mode= URL override (session-only; not persisted unless the user saves)
@@ -250,7 +253,8 @@ class TheArtOfFlight {
       ripple: 'showRipples',
       birds: 'show',
       constellation: 'show',
-      tubes: 'show'
+      tubes: 'show',
+      departures: 'show'
     };
     const method = layerMethods[mode];
     if (method && this.visualizations[mode]?.[method]) {
@@ -273,7 +277,8 @@ class TheArtOfFlight {
       ripple: { show: 'showRipples', hide: 'hideRipples' },
       birds: { show: 'show', hide: 'hide' },
       constellation: { show: 'show', hide: 'hide' },
-      tubes: { show: 'show', hide: 'hide' }
+      tubes: { show: 'show', hide: 'hide' },
+      departures: { show: 'show', hide: 'hide' }
     };
 
     // Hide previous layer mode
@@ -572,7 +577,7 @@ class TheArtOfFlight {
 
     // Clear canvas based on mode
     // Layer-based modes need transparent canvas so their DOM layer shows through
-    const layerBasedModes = ['map', 'ripple', 'birds', 'constellation', 'tubes'];
+    const layerBasedModes = ['map', 'ripple', 'birds', 'constellation', 'tubes', 'departures'];
     if (layerBasedModes.includes(this.currentMode)) {
       this.ctx.clearRect(0, 0, this.viewWidth, this.viewHeight);
     } else if (this.currentMode === 'patterns') {
