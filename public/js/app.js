@@ -82,8 +82,13 @@ class TheArtOfFlight {
     });
 
     document.addEventListener('keydown', (e) => {
+      // Don't hijack keys while typing in settings fields
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+
       if (e.key === 'i' || e.key === 'I') {
         this.settingsManager.toggleInfo();
+      } else if (e.key === 'f' || e.key === 'F') {
+        this.toggleFullscreen();
       }
     });
 
@@ -367,6 +372,48 @@ class TheArtOfFlight {
     } catch (error) {
       console.error('Failed to update flights:', error);
       this.updateStatus('Signal lost');
+    }
+
+    this.updateSignalOverlay();
+  }
+
+  /**
+   * Signal-lost overlay: the info panel is typically hidden on kiosks, so
+   * data failures need their own quiet, on-brand surface. Shows when the
+   * server is unreachable (2+ consecutive failures) or when the server
+   * reports its upstream sources are down and data is over a minute old.
+   * Auto-dismisses on recovery.
+   */
+  updateSignalOverlay() {
+    const overlay = document.getElementById('signalOverlay');
+    const detail = document.getElementById('signalDetail');
+    if (!overlay) return;
+
+    const state = this.flightManager.getConnectionState();
+    const showOverlay = state.failing || (state.stale && (state.dataAgeSeconds ?? 0) > 60);
+
+    if (showOverlay) {
+      if (detail) {
+        if (state.dataAgeSeconds != null && state.dataAgeSeconds > 0) {
+          const age = state.dataAgeSeconds >= 120
+            ? `${Math.round(state.dataAgeSeconds / 60)} minutes`
+            : `${state.dataAgeSeconds} seconds`;
+          detail.textContent = `last signal ${age} ago`;
+        } else {
+          detail.textContent = '';
+        }
+      }
+      overlay.classList.remove('hidden');
+    } else {
+      overlay.classList.add('hidden');
+    }
+  }
+
+  toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      document.documentElement.requestFullscreen().catch(() => {});
     }
   }
 

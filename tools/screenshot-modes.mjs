@@ -27,6 +27,7 @@ const args = process.argv.slice(2);
 const outDir = path.resolve(args.find(a => !a.startsWith('--')) || path.join(__dirname, 'screenshots', 'latest'));
 const modesArg = args.find(a => a.startsWith('--modes='));
 const portArg = args.find(a => a.startsWith('--port='));
+const OFFLINE = args.includes('--offline'); // abort all non-localhost requests — proves the kiosk renders with zero CDN/network dependencies
 
 const ALL_MODES = ['ripple', 'reality', 'birds', 'constellation', 'tubes', 'patterns'];
 const MODES = modesArg ? modesArg.split('=')[1].split(',') : ALL_MODES;
@@ -76,6 +77,10 @@ try {
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
     page.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()); });
+
+    if (OFFLINE) {
+      await page.route(/^(?!.*localhost).*$/, (route) => route.abort());
+    }
 
     await page.goto(`http://localhost:${PORT}/?mock=1&deterministic=1&mode=${mode}`, { waitUntil: 'load' });
     await page.waitForTimeout(SETTLE_MS);

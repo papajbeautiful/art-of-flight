@@ -108,7 +108,8 @@ class TubesVisualization {
     }
 
     try {
-      const { default: TubesCursor } = await import('https://cdn.jsdelivr.net/npm/threejs-components@0.0.19/build/cursors/tubes1.min.js');
+      // Vendored locally (was cdn.jsdelivr.net) — kiosk must not depend on a CDN
+      const { default: TubesCursor } = await import('/vendor/threejs-components/tubes1.min.js');
 
       this.tubesApp = TubesCursor(this.tubesCanvas, {
         tubes: {

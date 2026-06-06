@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Work+Sans:wght@100;200;300;400;500;600&display=swap');
+/* Fonts are self-hosted — see fonts.css (loaded before this file) */
 
 /* ══════════════════════════════════════════════
    theARTofFLIGHT — Observatory Control Interface
@@ -100,11 +100,6 @@ canvas {
   background: transparent;
 }
 
-/* ── Custom Cursor (hidden — using default browser cursor) ── */
-.custom-cursor {
-  display: none;
-}
-
 /* ── UI Overlay & Auto-Hide ── */
 .ui-overlay {
   position: fixed;
@@ -121,6 +116,58 @@ body.ui-idle .ui-overlay {
 
 body.ui-idle .info-overlay {
   opacity: 0;
+}
+
+/* Hide the cursor with the chrome — a visible pointer parked on a 24/7
+   display is a burn-in risk and breaks the installation illusion */
+body.ui-idle,
+body.ui-idle * {
+  cursor: none !important;
+}
+
+/* ── Signal-Lost Overlay ──
+   Shown when flight data stops flowing (server down or upstream stale).
+   Independent of the info panel, which kiosks typically run hidden —
+   without this, data failures were completely invisible on a TV. */
+.signal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 18vh;
+  gap: calc(var(--unit) * 1.5);
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.55) 100%);
+  opacity: 1;
+  transition: opacity 1.5s var(--ease);
+}
+
+.signal-overlay.hidden {
+  opacity: 0;
+}
+
+.signal-overlay .signal-title {
+  font-family: var(--header-font, 'Space Mono'), monospace;
+  font-size: 13px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  animation: signalPulse 3s ease-in-out infinite;
+}
+
+.signal-overlay .signal-detail {
+  font-family: var(--header-font, 'Space Mono'), monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+}
+
+@keyframes signalPulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
 }
 
 /* ── App Title ── */

@@ -11,6 +11,15 @@ class FlightManager {
     // ?mock=1 — ask the server for its frozen flight fixture (testing)
     this.mockMode = new URLSearchParams(window.location.search).get('mock') === '1';
 
+    // Connection health: timeout + exponential backoff so a struggling
+    // server isn't hammered, and the UI can show a signal-lost state
+    this.fetchTimeout = 8000;
+    this.consecutiveFailures = 0;
+    this.backoffUntil = 0;
+    this.lastSuccessTime = 0;
+    this.upstreamStale = false;       // server reached, but its sources are down
+    this.upstreamAgeSeconds = 0;
+
     this.predictor = new PositionPredictor();
 
     this.location = {
@@ -55,15 +64,30 @@ class FlightManager {
     if (now - this.lastUpdate < this.updateInterval) {
       return this.flights;
     }
+    if (now < this.backoffUntil) {
+      return this.flights;
+    }
 
     this.isUpdating = true;
 
     try {
       const url = `/api/flights?lat=${this.location.latitude}&lon=${this.location.longitude}&radius=${this.radius}${this.mockMode ? '&mock=1' : ''}`;
-      const response = await fetch(url);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.fetchTimeout);
+      let response;
+      try {
+        response = await fetch(url, { signal: controller.signal });
+      } finally {
+        clearTimeout(timeout);
+      }
       const data = await response.json();
 
       if (data.success) {
+        this.consecutiveFailures = 0;
+        this.backoffUntil = 0;
+        this.lastSuccessTime = now;
+        this.upstreamStale = !!data.stale;
+        this.upstreamAgeSeconds = data.dataAgeSeconds ?? 0;
         this.flights = data.flights.slice(0, this.maxFlights);
         this.lastUpdate = now;
 
@@ -121,14 +145,46 @@ class FlightManager {
         return this.flights;
       } else {
         console.error('Failed to fetch flights:', data.error);
+        this.noteFailure();
         return this.flights;
       }
     } catch (error) {
       console.error('Error fetching flights:', error);
+      this.noteFailure();
       return this.flights;
     } finally {
       this.isUpdating = false;
     }
+  }
+
+  /** Exponential backoff: 2s, 4s, 8s ... capped at 60s */
+  noteFailure() {
+    this.consecutiveFailures += 1;
+    const backoff = Math.min(2000 * Math.pow(2, this.consecutiveFailures - 1), 60000);
+    this.backoffUntil = Date.now() + backoff;
+  }
+
+  /**
+   * Connection health for the signal-lost overlay.
+   * "Trouble" is either the server being unreachable (fetch failures) or
+   * the server reporting that its upstream sources are down (stale data).
+   */
+  getConnectionState() {
+    const now = Date.now();
+    const sinceSuccess = this.lastSuccessTime ? Math.round((now - this.lastSuccessTime) / 1000) : null;
+
+    let dataAgeSeconds = null;
+    if (this.consecutiveFailures > 0) {
+      dataAgeSeconds = sinceSuccess;
+    } else if (this.upstreamStale) {
+      dataAgeSeconds = this.upstreamAgeSeconds;
+    }
+
+    return {
+      failing: this.consecutiveFailures >= 2,
+      stale: this.upstreamStale,
+      dataAgeSeconds
+    };
   }
 
   /**

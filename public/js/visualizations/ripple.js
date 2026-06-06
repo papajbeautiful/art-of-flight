@@ -128,7 +128,9 @@ class RippleVisualization {
       // By adding our capture-phase handler first, we can block trusted events.
       this._blockMouseEvents();
 
-      const { default: LiquidBackground } = await import('https://cdn.jsdelivr.net/npm/threejs-components@0.0.27/build/backgrounds/liquid1.min.js');
+      // Vendored locally (was cdn.jsdelivr.net) — a 24/7 kiosk must not
+      // depend on a CDN being reachable to render its primary mode
+      const { default: LiquidBackground } = await import('/vendor/threejs-components/liquid1.min.js');
 
       this.liquidApp = LiquidBackground(this.rippleCanvas);
 

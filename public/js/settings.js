@@ -13,7 +13,6 @@ class SettingsManager {
     };
 
     this.initUI();
-    this.initCustomCursor();
   }
 
   getDefaults() {
@@ -335,16 +334,6 @@ class SettingsManager {
 
   onChange(callback) { this.callbacks.push(callback); }
   notifyChange() { this.callbacks.forEach(cb => cb(this.settings)); }
-
-  initCustomCursor() {
-    const cursor = document.getElementById('customCursor');
-    document.addEventListener('mousemove', (e) => {
-      cursor.style.left = e.clientX + 'px';
-      cursor.style.top = e.clientY + 'px';
-    });
-    document.addEventListener('mousedown', () => cursor.classList.add('active'));
-    document.addEventListener('mouseup', () => cursor.classList.remove('active'));
-  }
 
   initUI() {
     const settingsBtn = document.getElementById('settingsBtn');
