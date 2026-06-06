@@ -25,7 +25,8 @@ full-screen menu.
 Click **⚙️** (top right):
 
 1. **Location** — set your actual coordinates for accurate overhead flights
-2. **Radius** — 25–40 km (bigger = more planes)
+2. **Radius** — 50 km default; 75–100 km fills the departure board even in
+   quiet hours (a 30 km circle over Sydney can dip to ~6 airborne aircraft)
 3. **Mode** — by room:
    - Living room ambience → **Ripple**, **Contrails**, or **Waves**
    - All-day generative art → **Patterns** (accumulates until midnight)

@@ -28,7 +28,7 @@ class FlightManager {
       longitude: 151.2153
     };
 
-    this.radius = 30;
+    this.radius = 50;
     this.maxFlights = 50;
 
     // Aircraft lifecycle: tracks opacity for fade in/out

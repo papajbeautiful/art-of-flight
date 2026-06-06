@@ -82,7 +82,7 @@ Click **⚙️** (top right). Key settings:
 | Setting | Default | Notes |
 |---------|---------|-------|
 | Location | Sydney Opera House (-33.8568, 151.2153) | Set yours for overhead accuracy |
-| Radius | 30 km | 20–40 km is the sweet spot |
+| Radius | 50 km | quiet hours are real — go 75–100 km for a fuller board |
 | Update interval | 2 s | How often to poll the server |
 | Max flights | 50 | |
 | Per-mode tabs | — | Each mode has its own colors, trails, labels, effects |

@@ -21,7 +21,7 @@ class SettingsManager {
       locationName: 'Sydney Opera House, NSW, Australia',
       latitude: -33.8568,
       longitude: 151.2153,
-      radius: 30,
+      radius: 50,
       mode: 'ripple',
       showInfoPanel: true,
       updateInterval: 2,
