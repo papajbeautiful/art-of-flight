@@ -67,7 +67,7 @@ Click **⚙️** (top right). Key settings:
 
 | Setting | Default | Notes |
 |---------|---------|-------|
-| Location | Summer Hill, NSW (-33.8914, 151.1382) | Set yours for overhead accuracy |
+| Location | Sydney Opera House (-33.8568, 151.2153) | Set yours for overhead accuracy |
 | Radius | 30 km | 20–40 km is the sweet spot |
 | Update interval | 2 s | How often to poll the server |
 | Max flights | 50 | |

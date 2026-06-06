@@ -20,6 +20,9 @@ Thumbs.db
 *.swp
 *.swo
 
+# Claude Code local config (personal permission allowlist — not for the repo)
+.claude/
+
 # Build files
 dist/
 build/

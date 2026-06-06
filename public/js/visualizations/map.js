@@ -83,7 +83,7 @@ class MapVisualization extends AircraftVisualization {
       this.map = new maplibregl.Map({
         container: this.mapDiv,
         style: MapVisualization.styleUrl(this.currentStyleKey),
-        center: [151.1382, -33.8914],
+        center: [151.2153, -33.8568],
         zoom: 10,
         attributionControl: false, // attribution lives in the About tab
         interactive: false         // kiosk display — the overlay owns the view

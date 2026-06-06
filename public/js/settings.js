@@ -18,9 +18,9 @@ class SettingsManager {
 
   getDefaults() {
     return {
-      locationName: 'Summer Hill, NSW, Australia',
-      latitude: -33.8914,
-      longitude: 151.1382,
+      locationName: 'Sydney Opera House, NSW, Australia',
+      latitude: -33.8568,
+      longitude: 151.2153,
       radius: 30,
       mode: 'ripple',
       showInfoPanel: true,

@@ -36,8 +36,8 @@ Then open **http://localhost:3000** — no API keys needed.
 
 1. Click the **⚙️ gear icon** (top right)
 2. On the **Global** tab, set your location:
-   - Location name (e.g. "Summer Hill, NSW")
-   - Latitude / longitude (defaults: -33.8914, 151.1382)
+   - Location name (e.g. "Sydney Opera House")
+   - Latitude / longitude (defaults: -33.8568, 151.2153)
 3. Pick a mode from the bottom bar — each has its own settings tab:
    Ripple · Reality · Grid · Waves · Tubes · Map · Patterns · Contrails ·
    Radar · Board

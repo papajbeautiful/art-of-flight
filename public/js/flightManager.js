@@ -23,9 +23,9 @@ class FlightManager {
     this.predictor = new PositionPredictor();
 
     this.location = {
-      name: 'Summer Hill, NSW, Australia',
-      latitude: -33.8914,
-      longitude: 151.1382
+      name: 'Sydney Opera House, NSW, Australia',
+      latitude: -33.8568,
+      longitude: 151.2153
     };
 
     this.radius = 30;
