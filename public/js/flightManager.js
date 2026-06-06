@@ -8,8 +8,8 @@ class FlightManager {
     this.updateInterval = 10000;
     this.isUpdating = false;
 
-    // ?mock=1 — ask the server for its frozen flight fixture (testing)
-    this.mockMode = new URLSearchParams(window.location.search).get('mock') === '1';
+    // ?mock=1 (static) or ?mock=moving — server-side frozen fixtures (testing)
+    this.mockMode = new URLSearchParams(window.location.search).get('mock') || '';
 
     // Connection health: timeout + exponential backoff so a struggling
     // server isn't hammered, and the UI can show a signal-lost state
@@ -71,7 +71,7 @@ class FlightManager {
     this.isUpdating = true;
 
     try {
-      const url = `/api/flights?lat=${this.location.latitude}&lon=${this.location.longitude}&radius=${this.radius}${this.mockMode ? '&mock=1' : ''}`;
+      const url = `/api/flights?lat=${this.location.latitude}&lon=${this.location.longitude}&radius=${this.radius}${this.mockMode ? `&mock=${this.mockMode}` : ''}`;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), this.fetchTimeout);
       let response;

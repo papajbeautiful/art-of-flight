@@ -332,9 +332,15 @@ class PatternsVisualization {
           this.drawSegmentToAccum(segment);
           this.accumCtx.globalCompositeOperation = 'source-over';
 
-          // Save for persistence
+          // Save for persistence — bounded: the accumulation CANVAS keeps the
+          // full day's art, but the live segment array (used only to redraw
+          // after a resize) is capped so an 18-hour kiosk day can't grow RAM
+          // and resize-redraw cost without limit.
           this.pathSegments.push(segment);
           this.segmentCount++;
+          if (this.pathSegments.length > 20000) {
+            this.pathSegments = this.pathSegments.slice(-15000);
+          }
 
           flightData.positions.push({ lat: flight.latitude, lon: flight.longitude });
           flightData.lastUpdate = now;

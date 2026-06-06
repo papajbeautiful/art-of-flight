@@ -161,8 +161,13 @@ class RippleVisualization extends AircraftVisualization {
     const rect = this.rippleCanvas.getBoundingClientRect();
 
     if (this.options.trackAllAircraft) {
-      // Dispatch a pointermove for each aircraft every frame
-      for (const ac of activeAircraft) {
+      // Round-robin cap: an event per aircraft per frame is a perf footgun
+      // at 50+ aircraft (3000+ synthetic events/sec through the WebGL lib).
+      // 12/frame still touches every aircraft several times a second.
+      const cap = Math.min(activeAircraft.length, 12);
+      this._trackAllOffset = ((this._trackAllOffset || 0) + cap) % activeAircraft.length;
+      for (let i = 0; i < cap; i++) {
+        const ac = activeAircraft[(this._trackAllOffset + i) % activeAircraft.length];
         this.rippleCanvas.dispatchEvent(new PointerEvent('pointermove', {
           clientX: ac.x + rect.left,
           clientY: ac.y + rect.top,

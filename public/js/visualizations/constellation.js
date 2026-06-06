@@ -128,21 +128,29 @@ class ConstellationVisualization extends AircraftVisualization {
       positions.push({ x: aircraft.x, y: aircraft.y, velocity: aircraft.velocity });
     }
 
+    // Hot loop: lines x cols x aircraft. Cheap box-reject before the sqrt,
+    // and dx/dist replaces cos(atan2()) — same math, no trig. This was the
+    // single most expensive computation in the app (millions of sqrt+atan2
+    // per frame at high line counts).
+    const radiusSq = radius * radius;
+
     this.lines.forEach(line => {
       line.forEach(point => {
         for (const pos of positions) {
           const dx = point.x - pos.x;
+          if (dx > radius || dx < -radius) continue;
           const dy = point.y - pos.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (dy > radius || dy < -radius) continue;
+          const distSq = dx * dx + dy * dy;
+          if (distSq >= radiusSq) continue;
 
-          if (distance < radius) {
-            const angle = Math.atan2(dy, dx);
-            const force = (radius - distance) / radius;
-            const speed = maxSpeed * (1 + (pos.velocity || 0) / 500);
+          const distance = Math.sqrt(distSq);
+          const force = (radius - distance) / radius;
+          const speed = maxSpeed * (1 + (pos.velocity || 0) / 500);
+          const scale = distance > 0 ? (force * speed) / distance : 0;
 
-            point.x += Math.cos(angle) * force * speed;
-            point.y += Math.sin(angle) * force * speed;
-          }
+          point.x += dx * scale;
+          point.y += dy * scale;
         }
 
         const springX = (point.baseX - point.x) * spring;

@@ -9,14 +9,16 @@ const FlightDataService = require('./flightDataService');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Frozen flight fixture for deterministic testing (?mock=1)
-let mockFixture = null;
-function getMockFixture() {
-  if (!mockFixture) {
-    const fixturePath = path.join(__dirname, 'fixtures', 'flights.json');
-    mockFixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+// Frozen flight fixtures for deterministic testing:
+//   ?mock=1       static fixture (zero velocities) — exact pixel guard
+//   ?mock=moving  real velocities — motion review (trails, easing)
+const mockFixtures = new Map();
+function getMockFixture(kind) {
+  const file = kind === 'moving' ? 'flights-moving.json' : 'flights.json';
+  if (!mockFixtures.has(file)) {
+    mockFixtures.set(file, JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', file), 'utf8')));
   }
-  return mockFixture;
+  return mockFixtures.get(file);
 }
 
 // Middleware
@@ -31,8 +33,8 @@ const flightService = new FlightDataService();
 app.get('/api/flights', async (req, res) => {
   try {
     // Deterministic fixture for screenshot/regression testing
-    if (req.query.mock === '1') {
-      const fixture = getMockFixture();
+    if (req.query.mock) {
+      const fixture = getMockFixture(req.query.mock);
       return res.json({
         success: true,
         count: fixture.flights.length,

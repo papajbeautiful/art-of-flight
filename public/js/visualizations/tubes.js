@@ -113,7 +113,11 @@ class TubesVisualization extends AircraftVisualization {
     const rect = this.tubesCanvas.getBoundingClientRect();
 
     if (this.options.trackAllAircraft) {
-      for (const ac of activeAircraft) {
+      // Round-robin cap (see ripple.js) — bounds synthetic event volume
+      const cap = Math.min(activeAircraft.length, 12);
+      this._trackAllOffset = ((this._trackAllOffset || 0) + cap) % activeAircraft.length;
+      for (let i = 0; i < cap; i++) {
+        const ac = activeAircraft[(this._trackAllOffset + i) % activeAircraft.length];
         this.tubesCanvas.dispatchEvent(new PointerEvent('pointermove', {
           clientX: ac.x + rect.left,
           clientY: ac.y + rect.top,

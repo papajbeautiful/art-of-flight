@@ -28,11 +28,16 @@ const outDir = path.resolve(args.find(a => !a.startsWith('--')) || path.join(__d
 const modesArg = args.find(a => a.startsWith('--modes='));
 const portArg = args.find(a => a.startsWith('--port='));
 const OFFLINE = args.includes('--offline'); // abort all non-localhost requests — proves the kiosk renders with zero CDN/network dependencies
+const fixtureArg = args.find(a => a.startsWith('--fixture='));
+const FIXTURE = fixtureArg ? fixtureArg.split('=')[1] : '1'; // '1' static (pixel guard) | 'moving' (motion review)
+const settleArg = args.find(a => a.startsWith('--settle='));
 
 const ALL_MODES = ['ripple', 'reality', 'birds', 'constellation', 'tubes', 'patterns'];
 const MODES = modesArg ? modesArg.split('=')[1].split(',') : ALL_MODES;
 const PORT = portArg ? parseInt(portArg.split('=')[1], 10) : 3177;
-const SETTLE_MS = 6000; // > 3s idle-fade + 0.8s chrome fade + fade-in/easing convergence
+// > 3s idle-fade + 0.8s chrome fade + fade-in/easing convergence; the moving
+// fixture defaults longer so trails have time to form
+const SETTLE_MS = settleArg ? parseInt(settleArg.split('=')[1], 10) : (FIXTURE === 'moving' ? 12000 : 6000);
 
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -82,13 +87,29 @@ try {
       await page.route(/^(?!.*localhost).*$/, (route) => route.abort());
     }
 
-    await page.goto(`http://localhost:${PORT}/?mock=1&deterministic=1&mode=${mode}`, { waitUntil: 'load' });
+    await page.goto(`http://localhost:${PORT}/?mock=${FIXTURE}&deterministic=1&mode=${mode}`, { waitUntil: 'load' });
     await page.waitForTimeout(SETTLE_MS);
 
+    // Screenshot FIRST — the WebGL modes animate on wall-clock, so the
+    // capture must happen at a consistent time after load
     const file = path.join(outDir, `${mode}.png`);
     await page.screenshot({ path: file });
+
+    // Frame-rate probe (after capture): a beauty change that tanks framerate
+    // on a 24/7 TV must not ship invisibly
+    const fps = await page.evaluate(() => new Promise((resolve) => {
+      let frames = 0;
+      const t0 = performance.now();
+      const tick = () => {
+        frames++;
+        const elapsed = performance.now() - t0;
+        if (elapsed < 2000) requestAnimationFrame(tick);
+        else resolve(Math.round(frames / (elapsed / 1000)));
+      };
+      requestAnimationFrame(tick);
+    }));
     const errNote = errors.length ? `  [${errors.length} console error(s): ${errors[0].slice(0, 120)}]` : '';
-    console.log(`captured ${mode}.png${errNote}`);
+    console.log(`captured ${mode}.png  (${fps} fps)${errNote}`);
     await page.close();
   }
 
