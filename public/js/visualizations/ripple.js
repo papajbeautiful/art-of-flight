@@ -337,7 +337,7 @@ class RippleVisualization {
     if (window.theArtOfFlight?.coordSystem?.isLocked) {
       return window.theArtOfFlight.coordSystem.toScreen(lat, lon);
     }
-    return { x: this.canvas.width / 2, y: this.canvas.height / 2 };
+    return { x: (this.canvas.clientWidth || this.canvas.width) / 2, y: (this.canvas.clientHeight || this.canvas.height) / 2 };
   }
 
   formatRouteText(flight) {

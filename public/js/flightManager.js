@@ -8,6 +8,9 @@ class FlightManager {
     this.updateInterval = 10000;
     this.isUpdating = false;
 
+    // ?mock=1 — ask the server for its frozen flight fixture (testing)
+    this.mockMode = new URLSearchParams(window.location.search).get('mock') === '1';
+
     this.predictor = new PositionPredictor();
 
     this.location = {
@@ -56,7 +59,7 @@ class FlightManager {
     this.isUpdating = true;
 
     try {
-      const url = `/api/flights?lat=${this.location.latitude}&lon=${this.location.longitude}&radius=${this.radius}`;
+      const url = `/api/flights?lat=${this.location.latitude}&lon=${this.location.longitude}&radius=${this.radius}${this.mockMode ? '&mock=1' : ''}`;
       const response = await fetch(url);
       const data = await response.json();
 

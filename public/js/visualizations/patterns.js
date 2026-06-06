@@ -95,11 +95,19 @@ class PatternsVisualization {
   }
 
   resizeAccumCanvas() {
+    // Mirror the main canvas backing store (device pixels) and draw in CSS
+    // pixels via the same DPR transform, so accumulated art stays crisp.
     this.accumCanvas.width = this.canvas.width;
     this.accumCanvas.height = this.canvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    this.accumCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     // Redraw all segments from lat/lon → current screen coords
     this.redrawAccumulated();
   }
+
+  /** Logical (CSS pixel) canvas dimensions */
+  get viewWidth() { return this.canvas.clientWidth || this.canvas.width; }
+  get viewHeight() { return this.canvas.clientHeight || this.canvas.height; }
 
   redrawAccumulated() {
     this.accumCtx.fillStyle = '#000000';
@@ -197,6 +205,8 @@ class PatternsVisualization {
   }
 
   getTimeOfDay() {
+    // Fixed palette in deterministic screenshot runs
+    if (window.__DETERMINISTIC__) return 'day';
     const hour = new Date().getHours();
     if (hour >= 0 && hour < 6) return 'night';
     if (hour >= 6 && hour < 9) return 'dawn';
@@ -355,13 +365,15 @@ class PatternsVisualization {
     if (window.theArtOfFlight?.coordSystem?.isLocked) {
       return window.theArtOfFlight.coordSystem.toScreen(lat, lon);
     }
-    return { x: this.canvas.width / 2, y: this.canvas.height / 2 };
+    return { x: this.viewWidth / 2, y: this.viewHeight / 2 };
   }
 
   draw() {
-    // Composite accumulation canvas onto main canvas
+    // Composite accumulation canvas onto main canvas.
+    // Destination size is in CSS pixels (the context is DPR-scaled), so the
+    // device-resolution accum buffer maps 1:1 to device pixels — stays crisp.
     this.ctx.globalCompositeOperation = 'screen';
-    this.ctx.drawImage(this.accumCanvas, 0, 0);
+    this.ctx.drawImage(this.accumCanvas, 0, 0, this.viewWidth, this.viewHeight);
     this.ctx.globalCompositeOperation = 'source-over';
 
     // Draw active flight leading edges
@@ -417,10 +429,14 @@ class PatternsVisualization {
   }
 
   drawStats() {
+    // Wall-clock dependent — masked in deterministic screenshot runs
+    if (window.__DETERMINISTIC__) return;
+
     const now = Date.now();
     const elapsed = now - this.startTime;
     const hours = Math.floor(elapsed / 3600000);
     const minutes = Math.floor((elapsed % 3600000) / 60000);
+    const h = this.viewHeight;
 
     // Count inbound/outbound
     let inCount = 0, outCount = 0;
@@ -430,21 +446,21 @@ class PatternsVisualization {
     }
 
     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    this.ctx.fillRect(16, this.canvas.height - 76, 230, 60);
+    this.ctx.fillRect(16, h - 76, 230, 60);
 
     this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
     this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(16, this.canvas.height - 76, 230, 60);
+    this.ctx.strokeRect(16, h - 76, 230, 60);
 
     this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     this.ctx.font = '9px "Space Mono", monospace';
-    this.ctx.fillText('FLIGHT PATTERNS', 26, this.canvas.height - 58);
+    this.ctx.fillText('FLIGHT PATTERNS', 26, h - 58);
 
     this.ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-    this.ctx.fillText(`${this.segmentCount} paths | ${this.activeFlights.size} active | ${hours}h ${minutes}m`, 26, this.canvas.height - 44);
+    this.ctx.fillText(`${this.segmentCount} paths | ${this.activeFlights.size} active | ${hours}h ${minutes}m`, 26, h - 44);
 
     // Inbound/outbound breakdown
-    this.ctx.fillText(`${inCount} inbound | ${outCount} outbound`, 26, this.canvas.height - 30);
+    this.ctx.fillText(`${inCount} inbound | ${outCount} outbound`, 26, h - 30);
 
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -452,7 +468,7 @@ class PatternsVisualization {
     const hoursUntil = Math.floor((tomorrow - now) / 3600000);
 
     this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-    this.ctx.fillText(`resets in ${hoursUntil}h`, 26, this.canvas.height - 20);
+    this.ctx.fillText(`resets in ${hoursUntil}h`, 26, h - 20);
   }
 
   savePaths() {

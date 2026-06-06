@@ -3,6 +3,26 @@
  * theARTofFLIGHT - Museum-grade flight visualization art installation
  */
 
+// URL overrides (testing/kiosk):
+//   ?mode=reality        force a visualization mode for this session
+//   ?mock=1              serve a frozen flight fixture from the server
+//   ?deterministic=1     seeded random + default settings, for reproducible screenshots
+const URL_PARAMS = new URLSearchParams(window.location.search);
+window.__DETERMINISTIC__ = URL_PARAMS.get('deterministic') === '1';
+
+if (window.__DETERMINISTIC__) {
+  // Seeded PRNG (mulberry32) so per-frame randomness is reproducible
+  let __seed = 0x2F6E2B1;
+  Math.random = function () {
+    __seed |= 0; __seed = (__seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(__seed ^ (__seed >>> 15), 1 | __seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  // Accumulated patterns art would differ run-to-run — start clean
+  try { localStorage.removeItem('theARTofFLIGHT_patterns'); } catch (e) { /* ok */ }
+}
+
 class TheArtOfFlight {
   constructor() {
     this.canvas = document.getElementById('canvas');
@@ -31,6 +51,13 @@ class TheArtOfFlight {
       map: new MapVisualization(this.canvas, this.ctx),
       patterns: new PatternsVisualization(this.canvas, this.ctx)
     };
+
+    // ?mode= URL override (session-only; not persisted unless the user saves)
+    const urlMode = URL_PARAMS.get('mode');
+    if (urlMode && this.visualizations[urlMode]) {
+      this.settingsManager.set('mode', urlMode);
+      this.settingsManager.updateUI();
+    }
 
     this.currentMode = this.settingsManager.get('mode');
     this.previousMode = null;
@@ -65,9 +92,18 @@ class TheArtOfFlight {
   }
 
   resizeCanvas() {
-    this.canvas.width = window.innerWidth;
-    this.canvas.height = window.innerHeight;
+    // Hi-DPI: render at device resolution while all drawing code keeps
+    // working in CSS-pixel units (CSS displays the canvas at 100vw/100vh).
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = Math.round(window.innerWidth * dpr);
+    this.canvas.height = Math.round(window.innerHeight * dpr);
+    // Setting width/height resets the context transform — reapply the DPR scale
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
+
+  /** Logical (CSS pixel) canvas dimensions — use these for layout math */
+  get viewWidth() { return this.canvas.clientWidth || window.innerWidth; }
+  get viewHeight() { return this.canvas.clientHeight || window.innerHeight; }
 
   applySettings(settings) {
     // Update flight manager
@@ -234,7 +270,7 @@ class TheArtOfFlight {
     // If switching TO patterns mode, fully clear canvas first
     if (newMode === 'patterns') {
       this.ctx.fillStyle = '#000000';
-      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
     }
 
     // Show/hide layer-based visualizations
@@ -502,14 +538,14 @@ class TheArtOfFlight {
     // Layer-based modes need transparent canvas so their DOM layer shows through
     const layerBasedModes = ['map', 'ripple', 'birds', 'constellation', 'tubes'];
     if (layerBasedModes.includes(this.currentMode)) {
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.ctx.clearRect(0, 0, this.viewWidth, this.viewHeight);
     } else if (this.currentMode === 'patterns') {
       this.ctx.fillStyle = '#000000';
-      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
       this.drawBackground();
     } else {
       this.ctx.fillStyle = 'rgba(10, 10, 10, 0.15)';
-      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
       this.drawBackground();
     }
 
@@ -797,21 +833,22 @@ class TheArtOfFlight {
     if (!cached || !cached.image) return;
 
     const img = cached.image;
-    const canvas = this.canvas;
+    const w = this.viewWidth;
+    const h = this.viewHeight;
 
     const imgRatio = img.width / img.height;
-    const canvasRatio = canvas.width / canvas.height;
+    const canvasRatio = w / h;
 
     let drawW, drawH, drawX, drawY;
     if (canvasRatio > imgRatio) {
-      drawW = canvas.width;
-      drawH = canvas.width / imgRatio;
+      drawW = w;
+      drawH = w / imgRatio;
       drawX = 0;
-      drawY = (canvas.height - drawH) / 2;
+      drawY = (h - drawH) / 2;
     } else {
-      drawH = canvas.height;
-      drawW = canvas.height * imgRatio;
-      drawX = (canvas.width - drawW) / 2;
+      drawH = h;
+      drawW = h * imgRatio;
+      drawX = (w - drawW) / 2;
       drawY = 0;
     }
 

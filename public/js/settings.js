@@ -245,6 +245,9 @@ class SettingsManager {
   }
 
   loadSettings() {
+    // Deterministic screenshot runs ignore saved settings — pure defaults
+    if (window.__DETERMINISTIC__) return this.getDefaults();
+
     const stored = localStorage.getItem('theARTofFLIGHT_settings');
     const defaults = this.getDefaults();
 

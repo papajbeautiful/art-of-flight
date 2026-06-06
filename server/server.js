@@ -1,10 +1,21 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const FlightDataService = require('./flightDataService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Frozen flight fixture for deterministic testing (?mock=1)
+let mockFixture = null;
+function getMockFixture() {
+  if (!mockFixture) {
+    const fixturePath = path.join(__dirname, 'fixtures', 'flights.json');
+    mockFixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+  }
+  return mockFixture;
+}
 
 // Middleware
 app.use(cors());
@@ -17,6 +28,17 @@ const flightService = new FlightDataService();
 // API Routes
 app.get('/api/flights', async (req, res) => {
   try {
+    // Deterministic fixture for screenshot/regression testing
+    if (req.query.mock === '1') {
+      const fixture = getMockFixture();
+      return res.json({
+        success: true,
+        count: fixture.flights.length,
+        flights: fixture.flights,
+        timestamp: Date.now()
+      });
+    }
+
     const { lat, lon, radius = 30 } = req.query;
 
     if (!lat || !lon) {

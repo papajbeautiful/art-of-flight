@@ -129,14 +129,18 @@ class BirdsVisualization {
 
   resizeGrid() {
     if (!this.gridCanvas) return;
-    this.gridCanvas.width = window.innerWidth;
-    this.gridCanvas.height = window.innerHeight;
+    // Hi-DPI backing store; drawing stays in CSS pixels (matches constellation)
+    const dpr = window.devicePixelRatio || 1;
+    this.gridCanvas.width = Math.round(window.innerWidth * dpr);
+    this.gridCanvas.height = Math.round(window.innerHeight * dpr);
+    if (!this.gridCtx) this.gridCtx = this.gridCanvas.getContext('2d');
+    this.gridCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   initGrid() {
     this.grid = [];
-    const w = this.gridCanvas?.width || window.innerWidth;
-    const h = this.gridCanvas?.height || window.innerHeight;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
     const size = this.options.squareSize;
 
     for (let x = 0; x < w; x += size) {
@@ -156,7 +160,9 @@ class BirdsVisualization {
     const size = this.options.squareSize;
     const col = Math.floor(x / size);
     const row = Math.floor(y / size);
-    const idx = col * Math.ceil((this.gridCanvas?.height || window.innerHeight) / size) + row;
+    // Grid is filled column-major in initGrid (outer x, inner y) — rows per
+    // column must use the same CSS-pixel height initGrid used.
+    const idx = col * Math.ceil(window.innerHeight / size) + row;
     return this.grid[idx] || null;
   }
 
@@ -189,8 +195,8 @@ class BirdsVisualization {
     if (!this.gridCtx || !this.gridCanvas) return;
 
     const ctx = this.gridCtx;
-    const w = this.gridCanvas.width;
-    const h = this.gridCanvas.height;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
     const size = this.options.squareSize;
     const color = this._glowRgb;
     const now = Date.now();
@@ -331,7 +337,7 @@ class BirdsVisualization {
     if (window.theArtOfFlight?.coordSystem?.isLocked) {
       return window.theArtOfFlight.coordSystem.toScreen(lat, lon);
     }
-    return { x: this.canvas.width / 2, y: this.canvas.height / 2 };
+    return { x: (this.canvas.clientWidth || this.canvas.width) / 2, y: (this.canvas.clientHeight || this.canvas.height) / 2 };
   }
 
   formatRouteText(flight) {

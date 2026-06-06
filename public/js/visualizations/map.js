@@ -235,8 +235,10 @@ class MapVisualization {
         const bottomLeft = projection.fromLatLngToPoint(sw);
         const point = projection.fromLatLngToPoint(new google.maps.LatLng(lat, lon));
 
-        const x = (point.x - bottomLeft.x) / (topRight.x - bottomLeft.x) * this.canvas.width;
-        const y = (point.y - topRight.y) / (bottomLeft.y - topRight.y) * this.canvas.height;
+        const w = this.canvas.clientWidth || this.canvas.width;
+        const h = this.canvas.clientHeight || this.canvas.height;
+        const x = (point.x - bottomLeft.x) / (topRight.x - bottomLeft.x) * w;
+        const y = (point.y - topRight.y) / (bottomLeft.y - topRight.y) * h;
         return { x, y };
       }
     }
@@ -245,7 +247,7 @@ class MapVisualization {
     if (window.theArtOfFlight?.coordSystem?.isLocked) {
       return window.theArtOfFlight.coordSystem.toScreen(lat, lon);
     }
-    return { x: this.canvas.width / 2, y: this.canvas.height / 2 };
+    return { x: (this.canvas.clientWidth || this.canvas.width) / 2, y: (this.canvas.clientHeight || this.canvas.height) / 2 };
   }
 
   getAirlineColor(callsign, flight) {

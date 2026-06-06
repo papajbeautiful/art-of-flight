@@ -12,6 +12,14 @@ class CoordinateSystem {
   }
 
   /**
+   * Logical (CSS pixel) canvas dimensions.
+   * The backing store is DPR-scaled, so canvas.width is device pixels —
+   * all projection math works in CSS pixels to match the scaled context.
+   */
+  get viewWidth() { return this.canvas.clientWidth || this.canvas.width; }
+  get viewHeight() { return this.canvas.clientHeight || this.canvas.height; }
+
+  /**
    * Initialize and lock the projection based on current flights
    */
   lock(flights, padding = 0.8) {
@@ -27,8 +35,8 @@ class CoordinateSystem {
     const latRange = bounds.maxLat - bounds.minLat || 0.1;
     const lonRange = bounds.maxLon - bounds.minLon || 0.1;
 
-    const scaleX = (this.canvas.width * padding) / lonRange;
-    const scaleY = (this.canvas.height * padding) / latRange;
+    const scaleX = (this.viewWidth * padding) / lonRange;
+    const scaleY = (this.viewHeight * padding) / latRange;
     this.scale = Math.min(scaleX, scaleY);
 
     this.isLocked = true;
@@ -50,8 +58,8 @@ class CoordinateSystem {
     const kmPerDegree = 111; // Approximate
     const degreesRadius = radiusKm / kmPerDegree;
 
-    const scaleX = (this.canvas.width * 0.4) / degreesRadius;
-    const scaleY = (this.canvas.height * 0.4) / degreesRadius;
+    const scaleX = (this.viewWidth * 0.4) / degreesRadius;
+    const scaleY = (this.viewHeight * 0.4) / degreesRadius;
     this.scale = Math.min(scaleX, scaleY);
 
     this.isLocked = true;
@@ -71,11 +79,11 @@ class CoordinateSystem {
    */
   toScreen(lat, lon) {
     if (!this.isLocked) {
-      return { x: this.canvas.width / 2, y: this.canvas.height / 2 };
+      return { x: this.viewWidth / 2, y: this.viewHeight / 2 };
     }
 
-    const x = this.canvas.width / 2 + (lon - this.centerLon) * this.scale;
-    const y = this.canvas.height / 2 - (lat - this.centerLat) * this.scale;
+    const x = this.viewWidth / 2 + (lon - this.centerLon) * this.scale;
+    const y = this.viewHeight / 2 - (lat - this.centerLat) * this.scale;
 
     return { x, y };
   }
@@ -88,8 +96,8 @@ class CoordinateSystem {
       return { lat: this.centerLat || 0, lon: this.centerLon || 0 };
     }
 
-    const lon = this.centerLon + (x - this.canvas.width / 2) / this.scale;
-    const lat = this.centerLat - (y - this.canvas.height / 2) / this.scale;
+    const lon = this.centerLon + (x - this.viewWidth / 2) / this.scale;
+    const lat = this.centerLat - (y - this.viewHeight / 2) / this.scale;
 
     return { lat, lon };
   }
@@ -99,7 +107,7 @@ class CoordinateSystem {
    */
   getVisibleBounds() {
     const topLeft = this.toLatLon(0, 0);
-    const bottomRight = this.toLatLon(this.canvas.width, this.canvas.height);
+    const bottomRight = this.toLatLon(this.viewWidth, this.viewHeight);
 
     return {
       north: topLeft.lat,
