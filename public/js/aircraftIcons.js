@@ -11,6 +11,28 @@ function hexToRgbIcon(hex) {
   };
 }
 
+/**
+ * Glow gradients are origin-centered (drawn under translate) so they can be
+ * cached. At steady state (opacity 1) every glow icon reuses one gradient
+ * per color/size instead of allocating ~50+ gradient objects per frame.
+ * Fading aircraft (continuous opacity) miss the cache — same as before.
+ */
+const _glowGradientCache = new Map();
+
+function getGlowGradient(ctx, rgb, gs, opacity) {
+  const key = `${rgb.r},${rgb.g},${rgb.b}|${gs}|${opacity}`;
+  let gradient = _glowGradientCache.get(key);
+  if (!gradient) {
+    gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, gs);
+    gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.6 * opacity})`);
+    gradient.addColorStop(0.4, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.15 * opacity})`);
+    gradient.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
+    if (_glowGradientCache.size > 256) _glowGradientCache.clear();
+    _glowGradientCache.set(key, gradient);
+  }
+  return gradient;
+}
+
 function drawAircraftIcon(ctx, x, y, heading, color, iconType, scale, dotSize, opacity) {
   if (!iconType || iconType === 'none') return;
   if (opacity === undefined) opacity = 1;
@@ -37,17 +59,14 @@ function drawAircraftIcon(ctx, x, y, heading, color, iconType, scale, dotSize, o
     case 'glow': {
       const rgb = hexToRgbIcon(color);
       const gs = dotSize;
-      const gradient = ctx.createRadialGradient(x, y, 0, x, y, gs);
-      gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.6 * opacity})`);
-      gradient.addColorStop(0.4, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.15 * opacity})`);
-      gradient.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
-      ctx.fillStyle = gradient;
+      ctx.translate(x, y);
+      ctx.fillStyle = getGlowGradient(ctx, rgb, gs, opacity);
       ctx.beginPath();
-      ctx.arc(x, y, gs, 0, Math.PI * 2);
+      ctx.arc(0, 0, gs, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.9 * opacity})`;
       ctx.beginPath();
-      ctx.arc(x, y, Math.max(2, gs * 0.25), 0, Math.PI * 2);
+      ctx.arc(0, 0, Math.max(2, gs * 0.25), 0, Math.PI * 2);
       ctx.fill();
       break;
     }
