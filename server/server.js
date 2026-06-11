@@ -87,6 +87,123 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ── Geocoding (Scene → "find address") ──────────────────────
+// Proxies Nominatim so the browser never talks to a third party and the
+// polite User-Agent contract is honoured server-side. User-initiated only.
+const geocodeFetch = require('node-fetch');
+app.get('/api/geocode', async (req, res) => {
+  const q = (req.query.q || '').toString().trim();
+  if (!q) return res.status(400).json({ error: 'Missing query parameter: q' });
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(q)}`;
+    const response = await geocodeFetch(url, {
+      headers: { 'User-Agent': 'theARTofFLIGHT/2.0 (kiosk geocoder; github.com/papajbeautiful/art-of-flight)' },
+      timeout: 8000
+    });
+    if (!response.ok) throw new Error(`Nominatim HTTP ${response.status}`);
+    const data = await response.json();
+    res.json({
+      success: true,
+      results: (Array.isArray(data) ? data : []).map(r => ({
+        name: r.display_name,
+        lat: parseFloat(r.lat),
+        lon: parseFloat(r.lon)
+      }))
+    });
+  } catch (error) {
+    console.error('Geocode failed:', error.message);
+    res.status(502).json({ error: 'Geocoding failed', message: error.message });
+  }
+});
+
+// ── Background image search (Look → Background) ─────────────
+// Live search over all of Wikimedia Commons (the curated gallery's source,
+// but the whole repository instead of 30 picks). No API key; generous
+// limits; user-initiated only. Licence + artist metadata travel with each
+// result and surface in the tile tooltip. (Openverse was tried first but
+// its anonymous rate limit is too tight for interactive search.)
+app.get('/api/backgrounds/search', async (req, res) => {
+  const q = (req.query.q || '').toString().trim();
+  if (!q) return res.status(400).json({ error: 'Missing query parameter: q' });
+  try {
+    const url = 'https://commons.wikimedia.org/w/api.php?' + new URLSearchParams({
+      action: 'query',
+      format: 'json',
+      generator: 'search',
+      gsrsearch: `filetype:bitmap ${q}`,
+      gsrnamespace: '6',
+      gsrlimit: '24',
+      prop: 'imageinfo',
+      iiprop: 'url|size|extmetadata',
+      iiurlwidth: '480'
+    });
+    const response = await geocodeFetch(url, {
+      headers: { 'User-Agent': 'theARTofFLIGHT/2.0 (kiosk background search; github.com/papajbeautiful/art-of-flight)' },
+      timeout: 12000
+    });
+    if (!response.ok) throw new Error(`Commons HTTP ${response.status}`);
+    const data = await response.json();
+    const pages = Object.values((data.query || {}).pages || {});
+    const stripTags = (s) => (s || '').replace(/<[^>]+>/g, '').trim();
+    const results = pages
+      .sort((a, b) => (a.index || 0) - (b.index || 0)) // search relevance
+      .map(p => {
+        const ii = (p.imageinfo || [])[0] || {};
+        const em = ii.extmetadata || {};
+        return {
+          title: (p.title || '').replace(/^File:/, '').replace(/\.[a-z]+$/i, ''),
+          artist: stripTags((em.Artist || {}).value) || 'Unknown',
+          license: (em.LicenseShortName || {}).value || 'See source',
+          thumb: ii.thumburl || ii.url,
+          full: ii.url,
+          width: ii.width || 0
+        };
+      })
+      .filter(r => r.full && r.width >= 1400)
+      .map(({ width, ...r }) => r);
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('Background search failed:', error.message);
+    res.status(502).json({ error: 'Background search failed', message: error.message });
+  }
+});
+
+// Same-origin image proxy: keeps remote backgrounds CORS-clean for canvas
+// and WebGL texture use (the ripple liquid needs same-origin pixels).
+app.get('/api/backgrounds/fetch', async (req, res) => {
+  const raw = (req.query.url || '').toString();
+  let target;
+  try {
+    target = new URL(raw);
+  } catch {
+    return res.status(400).json({ error: 'Invalid url' });
+  }
+  // Basic egress hygiene: https only, no IP literals / internal hostnames
+  const host = target.hostname.toLowerCase();
+  const looksInternal = /^(localhost|.*\.local|.*\.internal|.*\.lan)$/.test(host) ||
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(':');
+  if (target.protocol !== 'https:' || looksInternal) {
+    return res.status(400).json({ error: 'Refusing to proxy this url' });
+  }
+  try {
+    const response = await geocodeFetch(target.href, {
+      headers: { 'User-Agent': 'theARTofFLIGHT/2.0 (kiosk background fetch)' },
+      timeout: 20000,
+      size: 25 * 1024 * 1024
+    });
+    const type = response.headers.get('content-type') || '';
+    if (!response.ok || !type.startsWith('image/')) {
+      return res.status(502).json({ error: `Upstream returned ${response.status} ${type}` });
+    }
+    res.set('Content-Type', type);
+    res.set('Cache-Control', 'public, max-age=604800, immutable');
+    response.body.pipe(res);
+  } catch (error) {
+    console.error('Background fetch failed:', error.message);
+    res.status(502).json({ error: 'Background fetch failed', message: error.message });
+  }
+});
+
 // Serve the main app
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));

@@ -66,6 +66,31 @@ test('falls through to the third source on double failure', async () => {
   assert.equal(result.flights.length, 1);
 });
 
+test('a 200-with-zero-aircraft source does not mask later sources', async () => {
+  // Seen live 12/06/2026: adsb.fi answered 0 for Sydney while
+  // airplanes.live saw 52 — empty answers must fall through
+  const service = makeService(async (url) => {
+    if (url.includes('adsb.lol')) throw new Error('down');
+    if (url.includes('adsb.fi')) return okJson({ ac: [] });
+    return okJson({ ac: [AC()] });
+  });
+
+  const result = await service.getFlightsInRadius(-33.89, 151.14, 30);
+  assert.equal(result.source, 'airplanes.live');
+  assert.equal(result.flights.length, 1);
+  // The empty source answered correctly — it must NOT be circuit-broken
+  assert.ok(service.sourceAvailable('adsb.fi'), 'adsb.fi not marked failed');
+});
+
+test('an empty sky is served when every reachable source agrees', async () => {
+  const service = makeService(async () => okJson({ ac: [] }));
+
+  const result = await service.getFlightsInRadius(-33.89, 151.14, 30);
+  assert.equal(result.flights.length, 0);
+  assert.equal(result.stale, false);
+  assert.equal(result.source, 'adsb.lol');
+});
+
 // ── Serve-stale-on-error ─────────────────────────────────────
 
 test('serves last good payload when every source fails', async () => {

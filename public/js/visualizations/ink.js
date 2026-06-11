@@ -370,6 +370,7 @@ class InkVisualization extends AircraftVisualization {
 
   onActiveAircraft(activeAircraft, now) {
     if (!this._syncSize()) return;
+    this._checkDayReset();
     const ctx = this.accumCtx;
 
     const dt = this._lastFrame ? Math.min((now - this._lastFrame) / 1000, 0.1) : 0.016;
@@ -572,16 +573,28 @@ class InkVisualization extends AircraftVisualization {
     this.options.aircraftIcon = savedIcon;
   }
 
+  /**
+   * Mode switch: the day's painting stays on the sheet. Only brush state
+   * resets (a stale brush would drag a stroke across the paper on
+   * re-entry); the ink itself persists until the day rolls over.
+   */
   clear() {
     super.clear();
     this._brush.clear();
-    this._dirty.length = 0;
     this._fadeDebt = 0;
-    const a = this.accumCtx;
-    a.save();
-    a.setTransform(1, 0, 0, 1, 0, 0);
-    a.clearRect(0, 0, this.accum.width, this.accum.height);
-    a.restore();
-    if (this.paper) this._recomposeFull();
+  }
+
+  _checkDayReset() {
+    const today = new Date().toDateString();
+    if (this._day && this._day !== today) {
+      const a = this.accumCtx;
+      a.save();
+      a.setTransform(1, 0, 0, 1, 0, 0);
+      a.clearRect(0, 0, this.accum.width, this.accum.height);
+      a.restore();
+      this._dirty.length = 0;
+      if (this.paper) this._recomposeFull();
+    }
+    this._day = today;
   }
 }

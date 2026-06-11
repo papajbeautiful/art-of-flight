@@ -352,12 +352,16 @@ class ContrailsVisualization extends AircraftVisualization {
     super.draw();
   }
 
+  /**
+   * Mode switch: the photograph keeps developing — the accumulated trails
+   * survive switching away and back (the dissolve clock pauses while the
+   * mode is inactive). Only the segment-connection state resets, so
+   * re-entry doesn't draw a teleport streak. Trails dissolve within
+   * minutes anyway, so no daily reset is needed here.
+   */
   clear() {
     super.clear();
     this.lastPoints.clear();
-    this.accumCtx.save();
-    this.accumCtx.setTransform(1, 0, 0, 1, 0, 0);
-    this.accumCtx.clearRect(0, 0, this.accumCanvas.width, this.accumCanvas.height);
-    this.accumCtx.restore();
+    this._fadeDebt = 0;
   }
 }

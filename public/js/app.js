@@ -204,6 +204,18 @@ class TheArtOfFlight {
     this.flightManager.setUpdateInterval(settings.updateInterval);
     this.flightManager.setMaxFlights(settings.maxFlights);
 
+    // Scene moved (geocode / manual lat-lon / radius): re-project. The map
+    // refits its camera and patterns repaints its day from stored lat/lon.
+    if (this.coordSystem.isLocked && this._lockedScene &&
+        (this._lockedScene.lat !== settings.latitude ||
+         this._lockedScene.lon !== settings.longitude ||
+         this._lockedScene.radius !== settings.radius)) {
+      this.coordSystem.lockToUserLocation(settings.latitude, settings.longitude, settings.radius);
+      if (this.visualizations.map) this.visualizations.map.mapSynced = false;
+      this.visualizations.patterns?.redrawAccumulated?.();
+    }
+    this._lockedScene = { lat: settings.latitude, lon: settings.longitude, radius: settings.radius };
+
     // Shared background image
     this.updateBackgroundImage(settings);
 

@@ -205,7 +205,12 @@ class AuroraVisualization extends AircraftVisualization {
 
   onActiveAircraft(activeAircraft, now) {
     this._syncAccumSize();
+    this._checkDayReset();
     const ctx = this.accumCtx;
+
+    // Resuming after time in another mode: the preserved buffer is live
+    // art again — wake the composite/dissolve gates
+    if (this._lastFrame && now - this._lastFrame > 5000) this._lastLightAt = now;
 
     // Dissolve: delta-corrected destination-out with fractional debt so the
     // buffer truly reaches zero. ~0.066/s ⇒ a crossing stays readable for
@@ -458,12 +463,26 @@ class AuroraVisualization extends AircraftVisualization {
     super.draw();
   }
 
+  /**
+   * Mode switch: keep the day's light. Only aircraft tracking and strand
+   * chains reset (stale chains would draw teleport filaments on re-entry);
+   * the accumulation buffer carries today's artwork across modes and only
+   * resets on day rollover (_checkDayReset).
+   */
   clear() {
     super.clear();
     this._curtains.clear();
-    this.accumCtx.save();
-    this.accumCtx.setTransform(1, 0, 0, 1, 0, 0);
-    this.accumCtx.clearRect(0, 0, this.accum.width, this.accum.height);
-    this.accumCtx.restore();
+  }
+
+  _checkDayReset() {
+    const today = new Date().toDateString();
+    if (this._day && this._day !== today) {
+      this.accumCtx.save();
+      this.accumCtx.setTransform(1, 0, 0, 1, 0, 0);
+      this.accumCtx.clearRect(0, 0, this.accum.width, this.accum.height);
+      this.accumCtx.restore();
+      this._lastLightAt = 0;
+    }
+    this._day = today;
   }
 }

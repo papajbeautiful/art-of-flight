@@ -1289,6 +1289,44 @@ body.ui-idle * {
   flex: 1;
 }
 
+.find-btn {
+  flex: 0 0 auto;
+  min-width: 72px;
+}
+
+/* Geocode results: quiet list of candidate places */
+.geo-results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: calc(var(--unit) * 1);
+}
+
+.geo-result {
+  text-align: left;
+  padding: calc(var(--unit) * 1) calc(var(--unit) * 1.5);
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: 'Work Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 300;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.2s var(--ease);
+}
+
+.geo-result:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.bg-search-results {
+  margin-bottom: calc(var(--unit) * 2);
+}
+
 .file-upload-btn {
   width: 38px;
   min-height: 38px;

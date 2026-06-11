@@ -462,6 +462,14 @@ class SettingsManager {
         <div class="tab-column settings-group">
           <h4>Location</h4>
           <div class="input-group">
+            <label>Find address</label>
+            <div class="bg-input-row">
+              <input type="text" data-geo-q placeholder="e.g. Bondi Beach, Sydney" autocomplete="off">
+              <button class="btn btn-secondary btn-sm find-btn" data-geo-search type="button"><span>Find</span></button>
+            </div>
+            <div class="geo-results" data-geo-results></div>
+          </div>
+          <div class="input-group">
             <label>Name</label>
             <input type="text" data-scene-key="locationName" value="${esc(s.locationName)}" placeholder="City, Country">
           </div>
@@ -737,6 +745,16 @@ class SettingsManager {
 
     return `
       <p class="group-hint">Applies to every mode that can host an image. Map mode ignores it.</p>
+      <div class="input-group">
+        <label>Search the commons</label>
+        <div class="bg-input-row">
+          <input type="text" data-bgsearch-q placeholder="aurora borealis · nebula · ocean at night · marbled paper" autocomplete="off">
+          <button class="btn btn-secondary btn-sm find-btn" data-bgsearch-go type="button"><span>Search</span></button>
+        </div>
+        <p class="setting-hint" data-bgsearch-status></p>
+      </div>
+      <div class="bg-gallery bg-search-results hidden" data-bgsearch-results></div>
+      <div class="input-group"><label>Curated gallery</label></div>
       <div class="bg-gallery">${tiles}</div>
       <div class="input-group">
         <label>Image URL</label>
@@ -885,6 +903,87 @@ class SettingsManager {
         };
         reader.readAsDataURL(file);
       });
+    }
+
+    // Geocoding (Scene → find address)
+    const geoQ = container.querySelector('[data-geo-q]');
+    const geoBtn = container.querySelector('[data-geo-search]');
+    const geoResults = container.querySelector('[data-geo-results]');
+    if (geoQ && geoBtn && geoResults) {
+      const runGeocode = async () => {
+        const q = geoQ.value.trim();
+        if (!q) return;
+        geoResults.innerHTML = '<p class="setting-hint">Searching…</p>';
+        try {
+          const r = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+          const data = await r.json();
+          if (!data.success || !data.results.length) {
+            geoResults.innerHTML = '<p class="setting-hint">No matches — try adding a city or country.</p>';
+            return;
+          }
+          geoResults.innerHTML = data.results.map((res, i) =>
+            `<button class="geo-result" data-geo-pick="${i}" type="button">${esc(res.name)}</button>`).join('');
+          geoResults.querySelectorAll('[data-geo-pick]').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const pick = data.results[parseInt(btn.dataset.geoPick, 10)];
+              // Short, human name: first two segments of the display name
+              this.set('locationName', pick.name.split(',').slice(0, 2).join(',').trim());
+              this.set('latitude', Math.round(pick.lat * 10000) / 10000);
+              this.set('longitude', Math.round(pick.lon * 10000) / 10000);
+              this.applyChange();
+              this.renderSection('scene');
+            });
+          });
+        } catch (e) {
+          geoResults.innerHTML = '<p class="setting-hint">Lookup failed — is the network up?</p>';
+        }
+      };
+      geoBtn.addEventListener('click', runGeocode);
+      geoQ.addEventListener('keydown', (e) => { if (e.key === 'Enter') runGeocode(); });
+    }
+
+    // Background search (Look → search the commons)
+    const bgsQ = container.querySelector('[data-bgsearch-q]');
+    const bgsGo = container.querySelector('[data-bgsearch-go]');
+    const bgsResults = container.querySelector('[data-bgsearch-results]');
+    const bgsStatus = container.querySelector('[data-bgsearch-status]');
+    if (bgsQ && bgsGo && bgsResults) {
+      const runBgSearch = async () => {
+        const q = bgsQ.value.trim();
+        if (!q) return;
+        if (bgsStatus) bgsStatus.textContent = 'Searching the open commons…';
+        try {
+          const r = await fetch(`/api/backgrounds/search?q=${encodeURIComponent(q)}`);
+          const data = await r.json();
+          if (!data.success || !data.results.length) {
+            if (bgsStatus) bgsStatus.textContent = 'Nothing found — try broader words (sky, storm, aurora).';
+            bgsResults.classList.add('hidden');
+            return;
+          }
+          if (bgsStatus) bgsStatus.textContent = `${data.results.length} CC0/public-domain images — click to set`;
+          bgsResults.classList.remove('hidden');
+          bgsResults.innerHTML = data.results.map((res, i) => `
+            <button class="bg-tile" data-bgs-pick="${i}" type="button"
+                    title="${esc(res.title)} — ${esc(res.artist)} (${esc(res.license)})">
+              <img src="${esc(res.thumb)}" alt="" loading="lazy">
+            </button>`).join('');
+          bgsResults.querySelectorAll('[data-bgs-pick]').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const pick = data.results[parseInt(btn.dataset.bgsPick, 10)];
+              // Same-origin proxy keeps the image CORS-clean for canvas/WebGL
+              this.setLook('background', `/api/backgrounds/fetch?url=${encodeURIComponent(pick.full)}`);
+              bgsResults.querySelectorAll('.bg-tile').forEach(t => t.classList.remove('active'));
+              btn.classList.add('active');
+              container.querySelectorAll('.bg-gallery:not(.bg-search-results) .bg-tile').forEach(t => t.classList.remove('active'));
+              this.applyChange();
+            });
+          });
+        } catch (e) {
+          if (bgsStatus) bgsStatus.textContent = 'Search failed — is the network up?';
+        }
+      };
+      bgsGo.addEventListener('click', runBgSearch);
+      bgsQ.addEventListener('keydown', (e) => { if (e.key === 'Enter') runBgSearch(); });
     }
 
     // Action buttons (mode section)

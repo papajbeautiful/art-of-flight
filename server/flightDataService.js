@@ -115,6 +115,14 @@ class FlightDataService {
 
     const distNm = Math.ceil(radiusKm * 0.539957);
 
+    // A 200-with-zero-aircraft can mean a regional feed outage rather than
+    // an empty sky (seen live 12/06/2026: adsb.fi returning 0 for Sydney
+    // while airplanes.live saw 52). An empty answer is held as a fallback
+    // and the next source is tried; it is only served if every reachable
+    // source agrees the sky is empty. The empty source is NOT marked failed
+    // — its protocol worked, and overnight skies are genuinely empty.
+    let emptyFallback = null;
+
     for (const source of this.sources) {
       if (!this.sourceAvailable(source.name)) continue;
 
@@ -132,6 +140,14 @@ class FlightDataService {
           })
           .sort((a, b) => a.distance - b.distance);
 
+        if (flights.length === 0) {
+          if (!emptyFallback) {
+            emptyFallback = { flights, stale: false, dataAgeSeconds: 0, source: source.name };
+          }
+          console.log(`[${source.name}] 0 flights within ${radiusKm}km — trying next source`);
+          continue;
+        }
+
         this.queueRouteLookups(flights);
         this.attachRoutes(flights);
 
@@ -143,6 +159,13 @@ class FlightDataService {
       } catch (error) {
         this.markSourceFailure(source.name);
       }
+    }
+
+    // Every reachable source returned empty — believe the empty sky
+    if (emptyFallback) {
+      this.setCache(cacheKey, emptyFallback);
+      console.log(`[${emptyFallback.source}] empty sky confirmed within ${radiusKm}km`);
+      return emptyFallback;
     }
 
     // Every source failed or is backing off — serve the last good payload
