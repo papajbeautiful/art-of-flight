@@ -159,9 +159,11 @@ app.get('/api/backgrounds/search', async (req, res) => {
       .map(p => {
         const ii = (p.imageinfo || [])[0] || {};
         const em = ii.extmetadata || {};
+        // Commons rounds iiurlwidth up to its thumbnail buckets (2560 →
+        // 3840px) — derive the tile thumb from whatever bucket came back
         const display = ii.thumburl || ii.url;
-        const thumb = display && display.includes('/2560px-')
-          ? display.replace('/2560px-', '/480px-')
+        const thumb = display && /\/\d+px-/.test(display)
+          ? display.replace(/\/\d+px-/, '/480px-')
           : display;
         return {
           title: (p.title || '').replace(/^File:/, '').replace(/\.[a-z]+$/i, ''),
