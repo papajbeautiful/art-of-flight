@@ -93,13 +93,6 @@ class SettingsManager {
     this._saveTimer = null;
     this._rendered = false;
 
-    // Built-in background library (vendored CC0/public-domain images).
-    this.bgLibrary = [];
-    fetch('/backgrounds/manifest.json')
-      .then(r => r.ok ? r.json() : [])
-      .then(list => { this.bgLibrary = Array.isArray(list) ? list : []; })
-      .catch(() => {});
-
     this.initUI();
   }
 
@@ -734,17 +727,9 @@ class SettingsManager {
 
   renderBackgroundField() {
     const url = this.settings.look.background || '';
-    const tiles = [
-      `<button class="bg-tile bg-tile-none ${url ? '' : 'active'}" data-bg-pick="" title="No background">×</button>`,
-      ...this.bgLibrary.map(bg => `
-        <button class="bg-tile ${url === bg.file ? 'active' : ''}" data-bg-pick="${bg.file}"
-                title="${bg.title.replace(/"/g, '&quot;')} — ${bg.artist.replace(/"/g, '&quot;')} (${bg.license})">
-          <img src="${bg.thumb}" alt="" loading="lazy">
-        </button>`)
-    ].join('');
 
     return `
-      <p class="group-hint">Applies to every mode that can host an image. Map mode ignores it.</p>
+      <p class="group-hint">Applies across every mode (the map's tiles are opaque — it keeps its cartography).</p>
       <div class="input-group">
         <label>Search the commons</label>
         <div class="bg-input-row">
@@ -754,10 +739,8 @@ class SettingsManager {
         <p class="setting-hint" data-bgsearch-status></p>
       </div>
       <div class="bg-gallery bg-search-results hidden" data-bgsearch-results></div>
-      <div class="input-group"><label>Curated gallery</label></div>
-      <div class="bg-gallery">${tiles}</div>
       <div class="input-group">
-        <label>Image URL</label>
+        <label>Image URL or upload</label>
         <div class="bg-input-row">
           <input type="text" data-bg-url value="${(url && !url.startsWith('data:')) ? esc(url) : ''}" placeholder="https://example.com/image.jpg">
           <label class="file-upload-btn" title="Upload">
@@ -767,6 +750,7 @@ class SettingsManager {
             </svg>
             <input type="file" accept="image/*" data-bg-file class="visually-hidden">
           </label>
+          <button class="file-upload-btn" data-bg-clear type="button" title="No background${url ? '' : ' (current)'}">×</button>
         </div>
       </div>`;
   }
@@ -867,26 +851,15 @@ class SettingsManager {
       });
     });
 
-    // Background controls
+    // Background controls (search results + URL + upload + clear)
     const bgUrl = container.querySelector('[data-bg-url]');
     const bgFile = container.querySelector('[data-bg-file]');
-    const bgTiles = container.querySelectorAll('[data-bg-pick]');
-    const syncTiles = (url) => bgTiles.forEach(t => t.classList.toggle('active', t.dataset.bgPick === url));
+    const bgClear = container.querySelector('[data-bg-clear]');
 
-    bgTiles.forEach(tile => {
-      tile.addEventListener('click', () => {
-        const url = tile.dataset.bgPick;
-        this.setLook('background', url);
-        syncTiles(url);
-        if (bgUrl) bgUrl.value = (url && !url.startsWith('data:')) ? '' : bgUrl.value;
-        this.applyChange();
-      });
-    });
     if (bgUrl) {
       bgUrl.addEventListener('change', (e) => {
         const url = e.target.value.trim();
         this.setLook('background', url);
-        syncTiles(url);
         this.applyChange();
       });
     }
@@ -897,11 +870,18 @@ class SettingsManager {
         const reader = new FileReader();
         reader.onload = (ev) => {
           this.setLook('background', ev.target.result);
-          syncTiles(ev.target.result);
           if (bgUrl) bgUrl.value = '';
           this.applyChange();
         };
         reader.readAsDataURL(file);
+      });
+    }
+    if (bgClear) {
+      bgClear.addEventListener('click', () => {
+        this.setLook('background', '');
+        if (bgUrl) bgUrl.value = '';
+        container.querySelectorAll('.bg-search-results .bg-tile').forEach(t => t.classList.remove('active'));
+        this.applyChange();
       });
     }
 

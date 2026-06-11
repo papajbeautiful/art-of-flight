@@ -18,10 +18,10 @@ const THRESHOLD = thresholdArg ? parseFloat(thresholdArg.split('=')[1]) : 0.1;
 // Allowed mismatch (% of pixels) per mode. Ripple (WebGL) animates on the
 // library's internal clock and can't be seeded — its ambient motion produces
 // small frame-to-frame diffs even with identical input. Constellation's
-// spring physics oscillates at sub-pixel amplitude, so rAF timing jitter
-// moves a handful of antialiased pixels run-to-run.
+// damped springs settle on a load-dependent timeline, so antialiased line
+// edges shift between busy and quiet runs (measured 0.015-0.054% on the Pi).
 // Everything else must be pixel-exact.
-const ALLOWED_PCT = { 'ripple.png': 2.5, 'constellation.png': 0.05 };
+const ALLOWED_PCT = { 'ripple.png': 2.5, 'constellation.png': 0.15 };
 
 if (!baseDir || !candDir) {
   console.error('Usage: node tools/compare-screenshots.mjs <baselineDir> <candidateDir>');

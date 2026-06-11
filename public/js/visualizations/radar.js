@@ -82,9 +82,11 @@ class RadarVisualization extends AircraftVisualization {
     const quiet = this._quiet();
     const ringRadius = Math.min(w, h) * 0.46;
 
-    // Scope background — near-black with a hint of the phosphor
+    // Scope background — near-black with a hint of the phosphor; a user
+    // background ghosts through the glass at low alpha
     ctx.fillStyle = '#020403';
     ctx.fillRect(0, 0, w, h);
+    this.drawBackgroundImage(0.18);
     const bgGlow = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, ringRadius * 1.15);
     bgGlow.addColorStop(0, `rgba(${rgb}, 0.06)`);
     bgGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');

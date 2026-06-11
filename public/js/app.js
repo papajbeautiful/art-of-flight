@@ -274,6 +274,14 @@ class TheArtOfFlight {
 
     // Waves mode hosts the background on its own layer div
     this.updateLayerBackground('waveLayer', look.background);
+
+    // The board mounts on the user's wall: background behind a dark veil
+    const depLayer = document.getElementById('departuresLayer');
+    if (depLayer) {
+      depLayer.style.background = look.background
+        ? `linear-gradient(rgba(6, 5, 3, 0.82), rgba(6, 5, 3, 0.9)), url("${look.background}") center / cover no-repeat, #060503`
+        : '';
+    }
   }
 
   /**

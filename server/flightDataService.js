@@ -28,10 +28,17 @@ class FlightDataService {
     // the chain stops taxing every poll
     this.preferredSource = null;
 
-    // Short-TTL request dedup (concurrent clients / rapid polls)
+    // Short-TTL request dedup (concurrent clients / rapid polls) +
+    // stale-while-revalidate: past the fresh TTL but inside the SWR window,
+    // clients get the cached payload instantly and the upstream refresh
+    // runs in the background. Client polls stay ~ms even when an upstream
+    // answers slowly (airplanes.live bursts to ~5s under sustained polling),
+    // and the upstream sees one in-flight request at a time per location.
     this.cache = new Map();
     this.cacheDuration = options.cacheDuration ?? 1500;
+    this.swrWindow = options.swrWindow ?? 30000;
     this.cacheMaxKeys = options.cacheMaxKeys ?? 50;
+    this._refreshing = new Set();
 
     // Serve-stale-on-error: last successful payload per location key.
     // A 24/7 kiosk should keep showing slightly-old aircraft over nothing.
@@ -118,10 +125,25 @@ class FlightDataService {
   async getFlightsInRadius(lat, lon, radiusKm = 30) {
     const cacheKey = `${lat},${lon},${radiusKm}`;
     const cached = this.cache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < this.cacheDuration) {
-      return cached.payload;
+    if (cached) {
+      const age = Date.now() - cached.timestamp;
+      if (age < this.cacheDuration) return cached.payload;
+      if (age < this.swrWindow) {
+        // Serve stale instantly, refresh in the background (single-flight)
+        if (!this._refreshing.has(cacheKey)) {
+          this._refreshing.add(cacheKey);
+          this._fetchFresh(cacheKey, lat, lon, radiusKm)
+            .catch(() => {})
+            .finally(() => this._refreshing.delete(cacheKey));
+        }
+        return cached.payload;
+      }
     }
 
+    return this._fetchFresh(cacheKey, lat, lon, radiusKm);
+  }
+
+  async _fetchFresh(cacheKey, lat, lon, radiusKm) {
     const distNm = Math.ceil(radiusKm * 0.539957);
 
     // A 200-with-zero-aircraft can mean a regional feed outage rather than

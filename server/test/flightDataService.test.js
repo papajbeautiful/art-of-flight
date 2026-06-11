@@ -21,6 +21,7 @@ function makeService(fetchImpl, options = {}) {
   return new FlightDataService({
     fetchImpl,
     cacheDuration: 0,        // disable request dedup in tests
+    swrWindow: 0,            // disable stale-while-revalidate in tests
     routeLookupDelay: 0,
     backoffBase: 50,
     ...options
@@ -89,6 +90,33 @@ test('an empty sky is served when every reachable source agrees', async () => {
   assert.equal(result.flights.length, 0);
   assert.equal(result.stale, false);
   assert.equal(result.source, 'adsb.lol');
+});
+
+test('stale-while-revalidate: slow upstream never blocks a poll', async () => {
+  let resolveSlow;
+  let calls = 0;
+  const service = makeService(async (url) => {
+    if (url.includes('adsbdb')) return { ok: false, status: 404, json: async () => ({}) };
+    calls++;
+    if (calls === 1) return okJson({ ac: [AC()] });
+    // Second position call hangs until released (simulates a 5s upstream)
+    return new Promise(res => { resolveSlow = () => res(okJson({ ac: [AC({ hex: 'def456' })] })); });
+  }, { cacheDuration: 1, swrWindow: 60000 });
+
+  const first = await service.getFlightsInRadius(-33.89, 151.14, 30);
+  assert.equal(first.flights.length, 1);
+
+  await new Promise(r => setTimeout(r, 5)); // age past the fresh TTL
+
+  // Poll while the refresh hangs — must return the cached payload instantly
+  const stale = await service.getFlightsInRadius(-33.89, 151.14, 30);
+  assert.equal(stale.flights[0].icao24, 'abc123', 'served cached payload');
+  assert.equal(calls, 2, 'background refresh started');
+
+  resolveSlow();
+  await new Promise(r => setTimeout(r, 5));
+  const fresh = await service.getFlightsInRadius(-33.89, 151.14, 30);
+  assert.equal(fresh.flights[0].icao24, 'def456', 'refresh landed in cache');
 });
 
 test('the source that delivered is tried FIRST on the next request', async () => {

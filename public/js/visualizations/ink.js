@@ -523,8 +523,18 @@ class InkVisualization extends AircraftVisualization {
     const w = this.canvas.clientWidth || window.innerWidth;
     const h = this.canvas.clientHeight || window.innerHeight;
 
-    // The painting: paper × ink, pre-composited — one blit
-    ctx.drawImage(this.composite, 0, 0, w, h);
+    // The painting: paper × ink, pre-composited — one blit. With a user
+    // background, the image becomes the sheet and ink multiplies straight
+    // over it (skipping the dirty-rect composite for this path).
+    if (window.theArtOfFlight?.backgroundImage?.image) {
+      this.drawBackgroundImage(1.0);
+      ctx.save();
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.drawImage(this.accum, 0, 0, w, h);
+      ctx.restore();
+    } else {
+      ctx.drawImage(this.composite, 0, 0, w, h);
+    }
 
     const accent = this.palette?.primary || '#52e0c4';
     for (const [, aircraft] of this.aircraftPositions.entries()) {

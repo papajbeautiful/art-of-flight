@@ -111,6 +111,32 @@ class AircraftVisualization {
   /** HOOK: react to palette swaps (regenerate gradients, tint textures) */
   onPaletteChanged(palette) {}
 
+  /**
+   * Draw the shared Look background (cover-fit) on this mode's context.
+   * Returns true if an image was drawn — opaque scene modes call this and
+   * lighten their own washes so the image shows through.
+   */
+  drawBackgroundImage(alpha = 0.3, ctx = this.ctx) {
+    const cached = window.theArtOfFlight?.backgroundImage;
+    if (!cached || !cached.image) return false;
+    const img = cached.image;
+    const w = this.canvas.clientWidth || window.innerWidth;
+    const h = this.canvas.clientHeight || window.innerHeight;
+    const imgRatio = img.width / img.height;
+    const canvasRatio = w / h;
+    let dw, dh, dx, dy;
+    if (canvasRatio > imgRatio) {
+      dw = w; dh = w / imgRatio; dx = 0; dy = (h - dh) / 2;
+    } else {
+      dh = h; dw = h * imgRatio; dx = (w - dw) / 2; dy = 0;
+    }
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(img, dx, dy, dw, dh);
+    ctx.restore();
+    return true;
+  }
+
   // ── State hooks ───────────────────────────────────────────
 
   /** HOOK: layer-based modes return their visibility flag */

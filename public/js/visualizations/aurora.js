@@ -414,8 +414,10 @@ class AuroraVisualization extends AircraftVisualization {
 
     this._ensureSky(w, h);
 
-    // Deep night base (prerendered gradient + stars + horizon glow)
+    // Deep night base (prerendered gradient + stars + horizon glow);
+    // a user background glows softly between the night and the curtains
     ctx.drawImage(this._sky, 0, 0, w, h);
+    this.drawBackgroundImage(0.45);
 
     // A few stars breathe, very slowly (held still under the fixture)
     const det = window.__DETERMINISTIC__;

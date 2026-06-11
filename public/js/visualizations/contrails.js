@@ -289,14 +289,19 @@ class ContrailsVisualization extends AircraftVisualization {
     const sky = this._blendedSky();
     const ctx = this.ctx;
 
-    // Sky: blended 4-stop gradient + soft horizon glow
+    // Sky: blended 4-stop gradient + soft horizon glow. A user background
+    // sits beneath, with the sky as a translucent time-of-day wash over it.
+    const hasBg = this.drawBackgroundImage(1.0);
     const grad = ctx.createLinearGradient(0, 0, 0, h);
     const pos = [0, 0.45, 0.78, 1];
     sky.stops.forEach((s, i) => {
       grad.addColorStop(pos[i], `rgb(${Math.round(s[0])}, ${Math.round(s[1])}, ${Math.round(s[2])})`);
     });
+    ctx.save();
+    if (hasBg) ctx.globalAlpha = 0.55;
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
+    ctx.restore();
 
     // Stars fade in with night (and a little at dusk)
     const starAlpha = (sky.nightW || 0) * 0.9 + (sky.duskW || 0) * 0.3;
