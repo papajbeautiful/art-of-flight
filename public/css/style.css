@@ -81,6 +81,8 @@ body {
 /* ── Departures Board (split-flap, behind canvas) ── */
 #departuresLayer {
   --board-color: #FFB300;
+  --board-in: #FFB300;
+  --board-out: #FF5D3A;
   position: fixed;
   inset: 0;
   z-index: 0;
@@ -88,7 +90,8 @@ body {
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(40, 32, 12, 0.35) 0%, transparent 60%),
+    radial-gradient(ellipse at 50% 0%, rgba(40, 32, 12, 0.30) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 60%, transparent 35%, rgba(0, 0, 0, 0.5) 100%),
     #060503;
   pointer-events: none;
 }
@@ -97,15 +100,35 @@ body {
   width: min(92vw, 1480px);
   font-family: 'Space Mono', monospace;
   color: var(--board-color);
+  /* Mounted hardware: bezel, panel tone, top key light */
+  padding: calc(var(--unit) * 3) calc(var(--unit) * 2.5);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0%, rgba(0, 0, 0, 0.18) 100%), #0a0906;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 3px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 30px 80px rgba(0, 0, 0, 0.55);
 }
 
 .board-header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  gap: calc(var(--unit) * 3);
   padding: 0 calc(var(--unit) * 2) calc(var(--unit) * 2);
-  border-bottom: 2px solid rgba(255, 179, 0, 0.25);
+  border-bottom: 2px solid color-mix(in srgb, var(--board-color) 25%, transparent);
   margin-bottom: calc(var(--unit) * 2);
+}
+
+.board-clock {
+  font-size: clamp(14px, 1.8vw, 24px);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+}
+
+.board-clock .flap-char {
+  font-size: inherit;
 }
 
 .board-title {
@@ -142,9 +165,10 @@ body {
   align-items: center;
   padding: calc(var(--unit) * 1.25) calc(var(--unit) * 2);
   font-size: clamp(13px, 1.45vw, 22px);
-  letter-spacing: 0.08em;
-  border-bottom: 1px solid rgba(255, 179, 0, 0.10);
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid color-mix(in srgb, var(--board-color) 10%, transparent);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.025) 0%, transparent 45%, rgba(0, 0, 0, 0.35) 100%);
+  perspective: 700px; /* flap plates rotate in real 3D */
 }
 
 .board-row-ground {
@@ -157,10 +181,57 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Each character on its own flap plate: fixed drum width, plate gradient,
+   the horizontal split line, phosphor-bleed text glow */
+.flap-char {
+  display: inline-block;
+  width: 1ch;
+  padding: 0.06em 0.05em;
+  margin-right: 1px;
+  text-align: center;
+  position: relative;
+  background: linear-gradient(180deg, #1b1a14 0%, #14130e 49%, #0d0c08 51%, #0a0906 100%);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), inset 0 -1px 2px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--board-color) 35%, transparent);
+  backface-visibility: hidden;
+  transform-origin: center 50%;
+}
+
+.flap-char::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
 .board-callsign { font-weight: 700; }
 .board-airline, .board-route { opacity: 0.85; }
 .board-alt, .board-spd { opacity: 0.6; text-align: right; font-variant-numeric: tabular-nums; }
-.board-status { text-align: right; letter-spacing: 0.14em; font-size: 0.8em; opacity: 0.9; }
+.board-status { text-align: right; letter-spacing: 0.04em; font-size: 0.8em; opacity: 0.9; }
+
+/* Status colour script: the board's only colour accents */
+.board-status.status-inbound .flap-char { color: var(--board-in); }
+.board-status.status-outbound .flap-char { color: var(--board-out); }
+.board-status.status-overhead .flap-char {
+  color: #f4f2ec;
+  animation: overheadPulse 2.6s ease-in-out infinite;
+}
+.board-status.status-ground .flap-char { opacity: 0.5; }
+
+@keyframes overheadPulse {
+  0%, 100% { text-shadow: 0 0 6px rgba(244, 242, 236, 0.25); }
+  50% { text-shadow: 0 0 14px rgba(244, 242, 236, 0.6); }
+}
+
+/* Pixel-guard runs: freeze continuous decorative animation */
+.deterministic .board-status.status-overhead .flap-char {
+  animation: none;
+}
 
 .board-empty {
   text-align: center;

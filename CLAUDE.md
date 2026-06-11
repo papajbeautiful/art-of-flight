@@ -20,7 +20,9 @@ URL parameters (testing/kiosk):
 - `?mock=moving` — fixture with real velocities (motion/trail review)
 - `?deterministic=1` — seeded Math.random, default settings, fixed palettes
 
-Keys: `I` toggles info panel, `F` fullscreen, `Esc` closes settings.
+Keys: `S` settings panel, `I` info panel, `F` fullscreen, `1-9,0` direct
+mode select, `←/→` cycle modes, `Esc` closes settings. No chrome renders on
+load — a hint pill appears on mouse movement; `?chrome=0` kills all chrome.
 
 ## Architecture
 
@@ -40,7 +42,12 @@ public/js/
   positionPredictor.js  Dead-reckoning between polls (smooth 60fps motion)
   coordinateSystem.js   Locked equirectangular projection (CSS-pixel space)
   aircraftIcons.js      Shared icon drawing (cached glow gradients)
-  settings.js           Tabbed settings UI, localStorage, per-mode schemas
+  settings.js           Settings v2: Scene/Look/Mode panel, MODE_META +
+                        MODE_ALIASES (waves→constellation, board→departures,
+                        grid/birds→aurora, tubes→ripple), v1 migration,
+                        debounced autosave. Mode schemas = mode-own knobs ONLY.
+  palettes.js           Six curated palettes + custom; semantic slots
+                        (ui/primary/secondary/inbound/outbound/ramp/glow)
   visualizations/
     aircraftVisualization.js  BASE CLASS — read this first. Owns aircraft
                               tracking/easing/trails/pruning + trail/icon/
@@ -49,8 +56,9 @@ public/js/
                               latLonToScreen().
     ripple.js     WebGL liquid (vendored threejs-components) + dark-water texture
     reality.js    Pure base-class defaults (the reference mode)
-    birds.js      Grid cells ("Grid" in UI)   constellation.js  Waves
-    tubes.js      WebGL 3D tubes              map.js  MapLibre + pmtiles
+    aurora.js     Flow-ribbon curtains (default mode)
+    ink.js        Sumi-e brushwork on paper   constellation.js  Waves
+    map.js        MapLibre + pmtiles
     patterns.js   Koblin-style accumulation — deliberately NOT on the base class
     contrails.js  Long-exposure sky           radar.js  CRT phosphor sweep
     departures.js Split-flap DOM board — NOT on the base class (consumes the
@@ -79,8 +87,9 @@ public/backgrounds/
 - **The 1.5s position cache** in flightDataService is deliberate request
   dedup, not a bug.
 - New visualization modes: extend `AircraftVisualization` if they position
-  aircraft on screen; register in app.js `visualizations`, add a mode button
-  in index.html and a per-mode schema in settings.js `getModeSchemas()`.
+  aircraft on screen; read docs/MODE-CONTRACT.md first, then register in
+  app.js `visualizations`, settings.js (`MODE_META` + `getModeSchemas()`),
+  a script tag in index.html, and the tools (ALL_MODES + the switch sweep).
 
 ## Verification (the screenshot spine)
 
@@ -92,9 +101,9 @@ node tools/test-signal-overlay.mjs                # failure/recovery E2E
 ```
 
 - `tools/screenshots/baseline/` is the committed pixel-guard (static fixture,
-  1080p @ 2x DPR). Most modes must be **pixel-exact**; ripple/tubes (WebGL
-  internal clocks) and constellation (spring-physics jitter) have small
-  documented tolerances in compare-screenshots.mjs.
+  1080p @ 2x DPR). Most modes must be **pixel-exact**; ripple (WebGL
+  internal clock) and constellation have small documented tolerances in
+  compare-screenshots.mjs.
 - Behavior-preserving changes: compare against baseline before committing.
   Intentional visual changes: re-capture the baseline in the same commit and
   review by eye on the moving fixture (`--fixture=moving`).
@@ -111,8 +120,11 @@ node tools/test-signal-overlay.mjs                # failure/recovery E2E
 ## Conventions
 
 - Plain JavaScript, no build step, no frameworks. Script-tag globals.
-- Settings flow: settings.js schema → localStorage → `distributeSettings()`
-  → each mode's `setDisplayOptions()` (whitelist via `extraOptionKeys`).
+- Settings flow: Scene/Look/Mode model (settings.js) → localStorage
+  (autosaved, versioned, v1-migrating) → app.js `distributeSettings()`
+  composes Look + resolved palette + modeSettings → each mode's
+  `setPalette()` + `setDisplayOptions()` (whitelist via `extraOptionKeys`).
+  Full payload/palette contract: docs/MODE-CONTRACT.md.
 - Commit at phase/feature boundaries with detailed messages; the git log
   doubles as the change journal.
 - Windows dev box: PowerShell cmdlets are deny-listed in this repo's Claude

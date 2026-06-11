@@ -20,15 +20,15 @@ to run 24/7 on a TV or kiosk display.
 
 | Mode | What you see |
 |------|--------------|
-| 💧 **Ripple** | Aircraft perturb a dark liquid WebGL surface — night water |
-| ✈️ **Reality** | Aircraft with livery colors, contrail trails, and info cards |
-| 🟩 **Grid** | Neon grid cells light up and fade as aircraft pass |
-| 🌊 **Waves** | Horizontal lines distort around aircraft and spring back |
-| 🧵 **Tubes** | Glowing 3D tubes trail the aircraft (WebGL) |
-| 🗺️ **Map** | Dark vector map (self-hosted tiles) with live aircraft overlay |
-| 🌌 **Patterns** | Koblin-style flight-path art that accumulates all day |
-| 🛫 **Contrails** | Long-exposure sky: luminous vapor trails on a time-of-day sky |
-| 📡 **Radar** | CRT phosphor scope: rotating sweep, decaying blips, range rings |
+| 🌌 **Aurora** | Curtains of auroral light trail each aircraft across a night sky *(default)* |
+| 🖌️ **Ink** | Sumi-e brushwork — every plane a brushstroke on warm paper |
+| 🛰️ **Patterns** | Koblin-style flight-path art that accumulates all day |
+| 🛫 **Contrails** | Long-exposure sky: dissolving vapor trails on a time-of-day sky |
+| 💧 **Ripple** | Every aircraft leaves a wake on dark liquid water (WebGL) |
+| 🌊 **Waves** | An invisible line field, lit and bent by passing aircraft |
+| 📡 **Radar** | CRT phosphor scope: rotating sweep, true echo history, range rings |
+| ✈️ **Reality** | Aircraft with livery colors, glowing trails, and info cards |
+| 🗺️ **Map** | Night-photography vector map (self-hosted tiles) with luminous aircraft |
 | 🛬 **Board** | Split-flap departure board of live overhead flights |
 
 ## ⚡ Capabilities
@@ -43,11 +43,16 @@ to run 24/7 on a TV or kiosk display.
   map tiles are all served locally; the display renders with no internet
   beyond the flight APIs themselves
 - 🖥️ **4K-crisp** — all canvases render at native device resolution
-- 🎛️ **Deep per-mode settings** — tabbed UI, persisted in localStorage
+- 🫥 **Invisible chrome** — no UI on load; settings live behind a keystroke
+  and a mouse-summoned hint pill, so the art owns the screen
+- 🎛️ **One settings model** — Scene (where/data) · Look (background, curated
+  palettes, aircraft, labels — shared by every mode) · Mode (each mode's few
+  own knobs); autosaved to localStorage
+- 🎨 **Six curated palettes** — Aurora, Ember, Porcelain, Dawn, Abyss,
+  Phosphor (+ custom): one colour script applied artistically across all modes
 - 🖼️ **30 built-in backgrounds** — CC0/public-domain night skies, auroras,
   nebulae, oceans, antique charts (per-image credits in
-  `public/backgrounds/manifest.json`) — selectable per mode, or upload
-  your own image
+  `public/backgrounds/manifest.json`) — or upload your own image
 - 🐳 **Docker-ready**
 
 ## 🚀 Quick Start
@@ -77,19 +82,23 @@ See [TV_SETUP.md](TV_SETUP.md) for kiosk recommendations.
 
 ## ⚙️ Configuration
 
-Click **⚙️** (top right). Key settings:
+Press **S** (or move the mouse and click the hint pill). The panel has four
+sections:
 
-| Setting | Default | Notes |
-|---------|---------|-------|
-| Location | Sydney Opera House (-33.8568, 151.2153) | Set yours for overhead accuracy |
-| Radius | 50 km | quiet hours are real — go 75–100 km for a fuller board |
-| Update interval | 2 s | How often to poll the server |
-| Max flights | 50 | |
-| Per-mode tabs | — | Each mode has its own colors, trails, labels, effects |
+| Section | What lives there |
+|---------|------------------|
+| **Modes** | Card grid of all 10 modes (digit shortcuts shown) |
+| **Look** | Shared across every mode: background gallery, palette, aircraft icon/size, trails, label detail, home marker |
+| **Scene** | Location (Sydney Opera House by default), radius (50 km — go 75–100 for a fuller sky), update interval, max flights, ground traffic |
+| **Mode** | Only the active mode's own knobs (2–4 each) |
 
-Keyboard: **I** info panel · **F** fullscreen · **ESC** close settings.
+Changes apply live and autosave.
 
-URL parameters: `?mode=radar` force a mode · `?mock=1` frozen test fixture ·
+Keyboard: **S** settings · **I** info panel · **F** fullscreen ·
+**1–9, 0** direct mode select · **← →** cycle modes · **Esc** close.
+
+URL parameters: `?mode=radar` force a mode (`waves`/`board` aliases work) ·
+`?chrome=0` embed mode, no UI ever · `?mock=1` frozen test fixture ·
 `?deterministic=1` reproducible rendering (testing).
 
 ## 🌐 Flight Data
@@ -140,12 +149,16 @@ invariants that keep the kiosk reliable.
 
 ### Adding a visualization mode
 
-1. Extend `AircraftVisualization` (`public/js/visualizations/`) — you get
+1. Read `docs/MODE-CONTRACT.md` — the options payload, palette object, and
+   hard rules every mode must respect
+2. Extend `AircraftVisualization` (`public/js/visualizations/`) — you get
    aircraft tracking, easing, trails, and label rendering for free; override
-   the hooks (`onActiveAircraft`, `isActive`, `latLonToScreen`) for your effect
-2. Register it in `app.js` (`visualizations`), add a mode button in
-   `index.html`, and a settings schema in `settings.js`
-3. Add it to `ALL_MODES` in `tools/screenshot-modes.mjs` and re-baseline
+   the hooks (`onActiveAircraft`, `isActive`, `onPaletteChanged`,
+   `latLonToScreen`) for your effect
+3. Register it in `app.js` (`visualizations`), `settings.js` (`MODE_META` +
+   `getModeSchemas`), and its script tag in `index.html`
+4. Add it to `ALL_MODES` in `tools/screenshot-modes.mjs` and the sweep in
+   `tools/test-mode-switching.mjs`, then re-baseline
 
 ### Verification
 
@@ -172,9 +185,9 @@ easing) by eye; `--offline` proves the no-CDN guarantee.
   [airplanes.live](https://airplanes.live), [adsbdb.com](https://www.adsbdb.com)
 - Maps: [MapLibre GL](https://maplibre.org), [Protomaps](https://protomaps.com),
   © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors
-- WebGL effects: [threejs-components](https://github.com/klevron/threejs-components)
-  by Kevin Levron (Ripple: CC BY-NC-SA 4.0, Tubes: MIT); Grid reveal by
-  Gaurav Gajjar (MIT); Line distortion by BL/S® Studio (MIT)
+- WebGL liquid: [threejs-components](https://github.com/klevron/threejs-components)
+  by Kevin Levron (Ripple: CC BY-NC-SA 4.0); Waves after a line-distortion
+  study by BL/S® Studio (MIT)
 - Patterns mode inspired by Aaron Koblin's *Flight Patterns*
 
 ## 📄 License

@@ -136,11 +136,11 @@ class SettingsManager {
         ink: { strokeWeight: 1.0, wash: 1.0 },
         patterns: { exposure: 1.0, lineWidth: 1.0, showStats: false },
         contrails: { skyMode: 'auto', trailWidth: 2.0, dissolveMinutes: 6 },
-        ripple: { displacementScale: 5, metalness: 0.75, roughness: 0.25, persistence: 0.5, trackAllAircraft: true },
+        ripple: { displacementScale: 5, metalness: 0.75, roughness: 0.25, persistence: 0.5 },
         constellation: { lineCount: 200, distortRadius: 120, distortStrength: 15 },
         radar: { sweepSeconds: 6, ringCount: 4, showScanlines: true },
         reality: {},
-        map: { mapStyle: 'dark' },
+        map: { mapStyle: 'nocturne', spotlightLabels: true },
         departures: { maxRows: 10, showStatus: true, flipStagger: true }
       }
     };
@@ -208,7 +208,7 @@ class SettingsManager {
       const src = (old.modeSettings || {})[mode] || {};
       keys.forEach(k => { if (src[k] !== undefined) s.modeSettings[mode][k] = src[k]; });
     };
-    carry('ripple', ['displacementScale', 'metalness', 'roughness', 'trackAllAircraft']);
+    carry('ripple', ['displacementScale', 'metalness', 'roughness']);
     carry('constellation', ['lineCount', 'distortRadius', 'distortStrength']);
     carry('radar', ['sweepSeconds', 'ringCount', 'showScanlines']);
     carry('contrails', ['skyMode', 'trailWidth', 'dissolveMinutes']);
@@ -603,8 +603,7 @@ class SettingsManager {
         { key: 'displacementScale', label: 'Wake height', type: 'range', min: 1, max: 15, step: 0.5 },
         { key: 'metalness', label: 'Metalness', type: 'range', min: 0, max: 1.0, step: 0.05 },
         { key: 'roughness', label: 'Roughness', type: 'range', min: 0, max: 1.0, step: 0.05 },
-        { key: 'persistence', label: 'Ripple persistence', type: 'range', min: 0, max: 1.0, step: 0.05 },
-        { key: 'trackAllAircraft', label: 'All aircraft make wakes', type: 'checkbox' }
+        { key: 'persistence', label: 'Ripple persistence', type: 'range', min: 0, max: 1.0, step: 0.05 }
       ],
       constellation: [
         { key: 'lineCount', label: 'Line density', type: 'range', min: 20, max: 600, step: 10 },
@@ -619,9 +618,10 @@ class SettingsManager {
       reality: [],
       map: [
         { key: 'mapStyle', label: 'Map style', type: 'select', options: [
-          { value: 'dark', label: 'Dark' }, { value: 'black', label: 'Black' },
-          { value: 'grayscale', label: 'Grayscale' }
-        ]}
+          { value: 'nocturne', label: 'Nocturne' }, { value: 'dark', label: 'Dark' },
+          { value: 'black', label: 'Black' }, { value: 'grayscale', label: 'Grayscale' }
+        ]},
+        { key: 'spotlightLabels', label: 'Spotlight labels (nearest 3 only)', type: 'checkbox' }
       ],
       departures: [
         { key: 'maxRows', label: 'Rows', type: 'range', min: 4, max: 16, step: 1 },

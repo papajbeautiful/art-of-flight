@@ -33,53 +33,39 @@ class PatternsVisualization {
     this._lastW = this.canvas.width;
     this._lastH = this.canvas.height;
 
-    // Per-mode options
+    // Per-mode options. Exposure scales all three accumulation passes
+    // coherently — the Koblin look needs whisper-thin alphas that build into
+    // luminosity over hours, so exposure 1.0 is deliberately quiet.
     this.options = {
-      lineOpacity: 1.0,
+      exposure: 1.0,
       lineWidth: 1.0,
-      haloWidth: 1.0,
-      inboundColor: 'time',   // 'time' = time-of-day palette, or a fixed color key
-      outboundColor: 'time',
       showGroundAircraft: false,
-      showLeadingDot: true,
-      dotSize: 2.5,
-      showStats: true
+      showStats: false
     };
+
+    // Resolved palette (palettes.js) — patterns doesn't extend the base
+    // class, so it keeps its own copy via setPalette()
+    this.palette = (typeof PALETTES !== 'undefined') ? PALETTES.aurora : null;
+
+    // Midnight "developing in reverse": fade state instead of a hard cut
+    this._fadeOut = null; // { start } while the day's artwork dissolves
+
+    // Comet-head sprite cache, keyed by colour
+    this._cometCache = new Map();
 
     // Handle canvas resize
     this._resizeHandler = () => this.handleResize();
     window.addEventListener('resize', this._resizeHandler);
 
-    // Inbound/outbound color palettes
-    this.inboundPalettes = {
-      night:  ['rgba(40, 80, 255, 1)', 'rgba(80, 120, 255, 1)', 'rgba(120, 170, 255, 1)', 'rgba(180, 210, 255, 1)'],
-      dawn:   ['rgba(255, 140, 40, 1)', 'rgba(255, 180, 80, 1)', 'rgba(255, 210, 140, 1)', 'rgba(255, 230, 180, 1)'],
-      day:    ['rgba(60, 180, 255, 1)', 'rgba(120, 210, 255, 1)', 'rgba(180, 230, 255, 1)', 'rgba(230, 245, 255, 1)'],
-      dusk:   ['rgba(180, 60, 255, 1)', 'rgba(200, 120, 255, 1)', 'rgba(220, 160, 255, 1)', 'rgba(240, 200, 255, 1)']
-    };
-
-    this.outboundPalettes = {
-      night:  ['rgba(255, 60, 80, 1)', 'rgba(255, 100, 120, 1)', 'rgba(255, 150, 160, 1)', 'rgba(255, 200, 210, 1)'],
-      dawn:   ['rgba(80, 200, 120, 1)', 'rgba(120, 220, 150, 1)', 'rgba(160, 235, 180, 1)', 'rgba(200, 245, 210, 1)'],
-      day:    ['rgba(255, 170, 50, 1)', 'rgba(255, 195, 100, 1)', 'rgba(255, 215, 150, 1)', 'rgba(255, 235, 200, 1)'],
-      dusk:   ['rgba(255, 180, 60, 1)', 'rgba(255, 200, 100, 1)', 'rgba(255, 220, 150, 1)', 'rgba(255, 235, 190, 1)']
-    };
-
-    // Fixed color options (non time-based)
-    this.fixedColors = {
-      cyan:    'rgba(0, 240, 255, 1)',
-      blue:    'rgba(60, 120, 255, 1)',
-      gold:    'rgba(255, 210, 60, 1)',
-      magenta: 'rgba(255, 60, 180, 1)',
-      green:   'rgba(80, 255, 120, 1)',
-      white:   'rgba(220, 230, 255, 1)',
-      red:     'rgba(255, 80, 80, 1)',
-      orange:  'rgba(255, 160, 50, 1)'
-    };
-
     // Load saved paths
     this.loadPaths();
     this.checkMidnightReset();
+  }
+
+  setPalette(palette) {
+    if (!palette) return;
+    this.palette = palette;
+    this._cometCache.clear();
   }
 
   handleResize() {
@@ -127,14 +113,9 @@ class PatternsVisualization {
 
   setDisplayOptions(options) {
     if (!options) return;
-    if (options.lineOpacity !== undefined) this.options.lineOpacity = options.lineOpacity;
+    if (options.exposure !== undefined) this.options.exposure = options.exposure;
     if (options.lineWidth !== undefined) this.options.lineWidth = options.lineWidth;
-    if (options.haloWidth !== undefined) this.options.haloWidth = options.haloWidth;
-    if (options.inboundColor !== undefined) this.options.inboundColor = options.inboundColor;
-    if (options.outboundColor !== undefined) this.options.outboundColor = options.outboundColor;
     if (options.showGroundAircraft !== undefined) this.options.showGroundAircraft = options.showGroundAircraft;
-    if (options.showLeadingDot !== undefined) this.options.showLeadingDot = options.showLeadingDot;
-    if (options.dotSize !== undefined) this.options.dotSize = options.dotSize;
     if (options.showStats !== undefined) this.options.showStats = options.showStats;
   }
 
@@ -163,15 +144,17 @@ class PatternsVisualization {
 
   drawSegmentToAccum(seg) {
     const screen = this.segToScreen(seg);
-    const opacityScale = this.options.lineOpacity;
+    const exposure = this.options.exposure;
     const lineScale = this.options.lineWidth;
-    const haloScale = this.options.haloWidth;
     const segOpacity = seg.opacity ?? 1;
 
+    // Whisper-thin passes — density becomes luminosity over hours, the way
+    // the original Flight Patterns plates work. Hot alphas clip to flat
+    // white within minutes and destroy the topography.
     const passes = [
-      { width: 4.0 * haloScale, alpha: 0.06 * opacityScale * segOpacity },
-      { width: 1.8 * lineScale, alpha: 0.12 * opacityScale * segOpacity },
-      { width: 0.6 * lineScale, alpha: 0.25 * opacityScale * segOpacity },
+      { width: 4.0 * lineScale, alpha: 0.020 * exposure * segOpacity },
+      { width: 1.8 * lineScale, alpha: 0.050 * exposure * segOpacity },
+      { width: 0.6 * lineScale, alpha: 0.085 * exposure * segOpacity },
     ];
 
     passes.forEach(pass => {
@@ -195,23 +178,50 @@ class PatternsVisualization {
   checkMidnightReset() {
     const now = new Date();
     const today = now.toDateString();
+    if (this.lastResetDate === today || this._fadeOut) return;
 
-    if (this.lastResetDate !== today) {
-      console.log('New day detected — resetting flight patterns');
+    // Midnight is a moment, not a cut: the finished day develops in
+    // reverse over ~45s before the new sheet begins. Deterministic runs
+    // (and an empty canvas) reset instantly.
+    if (!window.__DETERMINISTIC__ && this.pathSegments.length > 0 && this.lastResetDate !== null) {
+      console.log('New day — dissolving the finished artwork');
+      this._fadeOut = { start: Date.now() };
+    } else {
       this.reset();
-      this.lastResetDate = today;
       this.savePaths();
     }
   }
 
-  getTimeOfDay() {
-    // Fixed palette in deterministic screenshot runs
-    if (window.__DETERMINISTIC__) return 'day';
-    const hour = new Date().getHours();
-    if (hour >= 0 && hour < 6) return 'night';
-    if (hour >= 6 && hour < 9) return 'dawn';
-    if (hour >= 9 && hour < 18) return 'day';
-    return 'dusk';
+  /** Advance the midnight dissolve; returns true while it runs */
+  _advanceFadeOut() {
+    if (!this._fadeOut) return false;
+    const elapsed = Date.now() - this._fadeOut.start;
+    if (elapsed >= 45000) {
+      this._fadeOut = null;
+      this.reset();
+      this.savePaths();
+      return false;
+    }
+    // Darken the accumulated art a little each frame — under the 'screen'
+    // composite this reads as the image sinking back into the dark
+    this.accumCtx.fillStyle = 'rgba(0, 0, 0, 0.04)';
+    this.accumCtx.fillRect(0, 0, this.viewWidth, this.viewHeight);
+    return true;
+  }
+
+  /**
+   * Time-of-day as a continuous warmth/lightness modulation (crossfaded by
+   * minute — the accumulated canvas records the day as smooth colour epochs)
+   */
+  getTimeModulation() {
+    if (window.__DETERMINISTIC__) return { warmth: 0, lift: 0 };
+    const d = new Date();
+    const t = d.getHours() + d.getMinutes() / 60;
+    // Warmth peaks at dawn (6:30) and dusk (18:30); lift peaks midday
+    const dawn = Math.exp(-Math.pow((t - 6.5) / 1.5, 2));
+    const dusk = Math.exp(-Math.pow((t - 18.5) / 1.5, 2));
+    const day = Math.exp(-Math.pow((t - 12.5) / 3.5, 2));
+    return { warmth: Math.min(1, dawn + dusk), lift: day * 0.5 };
   }
 
   /**
@@ -237,27 +247,53 @@ class PatternsVisualization {
     return diff < 90;
   }
 
-  getColorForFlight(altitude, timeOfDay, inbound) {
-    const colorOption = inbound ? this.options.inboundColor : this.options.outboundColor;
+  _hexRgb(hex) {
+    return [
+      parseInt(hex.slice(1, 3), 16),
+      parseInt(hex.slice(3, 5), 16),
+      parseInt(hex.slice(5, 7), 16)
+    ];
+  }
 
-    // Fixed color mode
-    if (colorOption !== 'time' && this.fixedColors[colorOption]) {
-      return this.fixedColors[colorOption];
+  /**
+   * Continuous colour: altitude lerps through the palette ramp (no banding),
+   * direction pulls gently toward the palette's inbound/outbound inks, and
+   * the hour of day warms or lifts the result by a few percent — the
+   * never-cleared canvas records dawn-to-dusk as smooth colour epochs.
+   */
+  getColorForFlight(altitude, inbound) {
+    const ramp = this.palette?.ramp || ['#071019', '#0e3a40', '#16847e', '#52e0c4', '#b79cff'];
+    const t = Math.min((altitude || 0) / 45000, 1) * (ramp.length - 1.001);
+    const i = Math.floor(t);
+    const f = t - i;
+    const a = this._hexRgb(ramp[Math.max(1, i)]); // skip ramp[0]: too dark for 'lighter'
+    const b = this._hexRgb(ramp[Math.min(Math.max(1, i) + 1, ramp.length - 1)]);
+    let r = a[0] + (b[0] - a[0]) * f;
+    let g = a[1] + (b[1] - a[1]) * f;
+    let bl = a[2] + (b[2] - a[2]) * f;
+
+    // Direction ink: desaturated pull toward inbound/outbound (two inks,
+    // not two neons); unknown direction stays on the pure ramp
+    if (inbound !== null) {
+      const ink = this._hexRgb(inbound ? (this.palette?.inbound || '#52e0c4') : (this.palette?.outbound || '#b79cff'));
+      r = r * 0.65 + ink[0] * 0.35;
+      g = g * 0.65 + ink[1] * 0.35;
+      bl = bl * 0.65 + ink[2] * 0.35;
     }
 
-    // Time-of-day palette
-    const palettes = inbound ? this.inboundPalettes : this.outboundPalettes;
-    const palette = palettes[timeOfDay];
-    const normalized = Math.min(altitude / 45000, 1);
-    const index = Math.floor(normalized * (palette.length - 1));
-    return palette[Math.min(index, palette.length - 1)];
+    const { warmth, lift } = this.getTimeModulation();
+    r = Math.min(255, r * (1 + 0.12 * warmth + 0.06 * lift));
+    g = Math.min(255, g * (1 + 0.04 * warmth + 0.06 * lift));
+    bl = Math.min(255, bl * (1 - 0.08 * warmth + 0.06 * lift));
+
+    return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(bl)}, 1)`;
   }
 
   update(flights) {
     const now = Date.now();
-    const timeOfDay = this.getTimeOfDay();
 
     this.checkMidnightReset();
+    if (this._advanceFadeOut()) return; // hold new strokes while dissolving
 
     // Ensure accum canvas matches main canvas size
     if (this.accumCanvas.width !== this.canvas.width ||
@@ -283,15 +319,20 @@ class PatternsVisualization {
           id: id,
           positions: [{ lat: flight.latitude, lon: flight.longitude }],
           altitude: flight.altitudeFeet || 0,
-          color: this.getColorForFlight(flight.altitudeFeet || 0, timeOfDay, inbound !== false),
+          color: this.getColorForFlight(flight.altitudeFeet || 0, inbound),
           heading: flight.heading || 0,
           direction: direction,
           opacity: flight.opacity ?? 1,
+          verticalRate: flight.verticalRate ?? 0,
+          lastCp: null,
           startTime: now,
           lastUpdate: now
         });
       } else {
         const flightData = this.activeFlights.get(id);
+        // Fade lifecycle applies even to stationary aircraft (the static
+        // fixture never moves — heads must still fade in)
+        flightData.opacity = flight.opacity ?? 1;
         const lastPos = flightData.positions[flightData.positions.length - 1];
 
         // Calculate screen distance to decide if we should add a segment
@@ -302,14 +343,32 @@ class PatternsVisualization {
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         if (distance > 1.5) {
-          // Create bezier control point from previous trajectory
-          const prevPos = flightData.positions.length > 1
-            ? flightData.positions[flightData.positions.length - 2]
-            : lastPos;
-
           // Update direction classification
           flightData.direction = direction;
-          flightData.color = this.getColorForFlight(flight.altitudeFeet || 0, timeOfDay, inbound !== false);
+          flightData.color = this.getColorForFlight(flight.altitudeFeet || 0, inbound);
+          flightData.verticalRate = flight.verticalRate ?? 0;
+
+          // C1 continuity: reflect the previous control point about the
+          // joint so consecutive quadratics share a tangent (no kinks).
+          // First segment falls back to forward extrapolation.
+          let clat, clon;
+          if (flightData.lastCp) {
+            clat = 2 * lastPos.lat - flightData.lastCp.lat;
+            clon = 2 * lastPos.lon - flightData.lastCp.lon;
+            // Clamp runaway reflections (data jumps) to the segment scale
+            const span = Math.abs(flight.latitude - lastPos.lat) + Math.abs(flight.longitude - lastPos.lon);
+            if (Math.abs(clat - lastPos.lat) + Math.abs(clon - lastPos.lon) > span * 1.5) {
+              clat = lastPos.lat + (flight.latitude - lastPos.lat) * 0.3;
+              clon = lastPos.lon + (flight.longitude - lastPos.lon) * 0.3;
+            }
+          } else {
+            const prevPos = flightData.positions.length > 1
+              ? flightData.positions[flightData.positions.length - 2]
+              : lastPos;
+            clat = lastPos.lat + (flight.latitude - prevPos.lat) * 0.3;
+            clon = lastPos.lon + (flight.longitude - prevPos.lon) * 0.3;
+          }
+          flightData.lastCp = { lat: clat, lon: clon };
 
           const segOpacity = flight.opacity ?? 1;
           const segment = {
@@ -317,8 +376,8 @@ class PatternsVisualization {
             lon1: lastPos.lon,
             lat2: flight.latitude,
             lon2: flight.longitude,
-            clat: lastPos.lat + (flight.latitude - prevPos.lat) * 0.3,
-            clon: lastPos.lon + (flight.longitude - prevPos.lon) * 0.3,
+            clat: clat,
+            clon: clon,
             color: flightData.color,
             direction: direction,
             timestamp: now,
@@ -387,9 +446,18 @@ class PatternsVisualization {
     this.ctx.lineCap = 'round';
 
     for (const [id, flightData] of this.activeFlights.entries()) {
-      if (flightData.positions.length < 2) continue;
-
       const opacity = flightData.opacity ?? 1;
+
+      // Comet glint draws even for single-position flights — the static
+      // fixture (zero velocity) then still composes, and the pixel guard
+      // gets real coverage instead of a black frame
+      if (flightData.positions.length < 2) {
+        const p = this.latLonToScreen(flightData.positions[0].lat, flightData.positions[0].lon);
+        const sprite = this._cometSprite(flightData.color);
+        this.ctx.globalAlpha = 0.9 * opacity;
+        this.ctx.drawImage(sprite, p.x - 11, p.y - 11, 22, 22);
+        continue;
+      }
       this.ctx.strokeStyle = flightData.color;
       this.ctx.globalAlpha = 0.5 * opacity;
       this.ctx.lineWidth = 1.2 * this.options.lineWidth;
@@ -413,15 +481,17 @@ class PatternsVisualization {
       }
       this.ctx.stroke();
 
-      // Bright dot at current position
-      if (this.options.showLeadingDot) {
-        const lastPos = this.latLonToScreen(pos[pos.length - 1].lat, pos[pos.length - 1].lon);
-        this.ctx.globalAlpha = 0.7 * opacity;
-        this.ctx.fillStyle = flightData.color;
-        this.ctx.beginPath();
-        this.ctx.arc(lastPos.x, lastPos.y, this.options.dotSize, 0, Math.PI * 2);
-        this.ctx.fill();
+      // Comet glint at the leading edge — the one "alive" element. A cached
+      // radial sprite breathing gently with climb/descent.
+      const lastPos = this.latLonToScreen(pos[pos.length - 1].lat, pos[pos.length - 1].lon);
+      const sprite = this._cometSprite(flightData.color);
+      let s = 22;
+      if (!window.__DETERMINISTIC__) {
+        const vr = Math.max(-1, Math.min(1, (flightData.verticalRate || 0) / 2500));
+        s *= 1 + 0.10 * Math.sin(Date.now() / (520 - 140 * vr) + lastPos.x * 0.05);
       }
+      this.ctx.globalAlpha = 0.9 * opacity;
+      this.ctx.drawImage(sprite, lastPos.x - s / 2, lastPos.y - s / 2, s, s);
     }
 
     // Reset
@@ -434,47 +504,39 @@ class PatternsVisualization {
     }
   }
 
+  /** Cached comet-glint sprite per colour (origin-centred radial gradient) */
+  _cometSprite(color) {
+    let sprite = this._cometCache.get(color);
+    if (sprite) return sprite;
+    const m = color.match(/[\d.]+/g) || ['255', '255', '255'];
+    const s = 44;
+    sprite = document.createElement('canvas');
+    sprite.width = sprite.height = s;
+    const g = sprite.getContext('2d');
+    const grad = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+    grad.addColorStop(0.18, `rgba(${m[0]}, ${m[1]}, ${m[2]}, 0.85)`);
+    grad.addColorStop(0.45, `rgba(${m[0]}, ${m[1]}, ${m[2]}, 0.22)`);
+    grad.addColorStop(1, `rgba(${m[0]}, ${m[1]}, ${m[2]}, 0)`);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, s, s);
+    if (this._cometCache.size > 64) this._cometCache.clear();
+    this._cometCache.set(color, sprite);
+    return sprite;
+  }
+
   drawStats() {
     // Wall-clock dependent — masked in deterministic screenshot runs
     if (window.__DETERMINISTIC__) return;
 
-    const now = Date.now();
-    const elapsed = now - this.startTime;
-    const hours = Math.floor(elapsed / 3600000);
-    const minutes = Math.floor((elapsed % 3600000) / 60000);
+    // Gallery placard: one thin letter-spaced caption, no box
     const h = this.viewHeight;
-
-    // Count inbound/outbound
-    let inCount = 0, outCount = 0;
-    for (const [, fd] of this.activeFlights) {
-      if (fd.direction === 'inbound') inCount++;
-      else if (fd.direction === 'outbound') outCount++;
-    }
-
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    this.ctx.fillRect(16, h - 76, 230, 60);
-
-    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-    this.ctx.lineWidth = 1;
-    this.ctx.strokeRect(16, h - 76, 230, 60);
-
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    this.ctx.font = '9px "Space Mono", monospace';
-    this.ctx.fillText('FLIGHT PATTERNS', 26, h - 58);
-
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-    this.ctx.fillText(`${this.segmentCount} paths | ${this.activeFlights.size} active | ${hours}h ${minutes}m`, 26, h - 44);
-
-    // Inbound/outbound breakdown
-    this.ctx.fillText(`${inCount} inbound | ${outCount} outbound`, 26, h - 30);
-
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    const hoursUntil = Math.floor((tomorrow - now) / 3600000);
-
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-    this.ctx.fillText(`resets in ${hoursUntil}h`, 26, h - 20);
+    const ui = this.palette?.ui || '#6fe3cf';
+    const m = this._hexRgb(ui);
+    this.ctx.fillStyle = `rgba(${m[0]}, ${m[1]}, ${m[2]}, 0.35)`;
+    this.ctx.font = '10px "Space Mono", monospace';
+    const paths = this.segmentCount.toLocaleString();
+    this.ctx.fillText(`F L I G H T   P A T T E R N S   —   ${paths} PATHS   —   ${this.activeFlights.size} ALOFT   —   RESETS 00:00`, 24, h - 24);
   }
 
   savePaths() {

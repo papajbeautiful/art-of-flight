@@ -1,8 +1,23 @@
 /**
- * Ripple Mode: Liquid Background (threejs-components)
- * Aircraft trigger displacement on a full-screen liquid WebGL layer
+ * Ripple Mode: wakes on dark water (threejs-components liquid)
  * Credit: Kevin Levron — CC BY-NC-SA 4.0
  * https://codepen.io/soju22/pen/wvyBorP
+ *
+ * Every aircraft disturbs the water directly: continuous addDrop() wakes
+ * whose strength follows ground speed (still air = still water — which also
+ * keeps the zero-velocity pixel-guard fixture stable), whose radius follows
+ * altitude (high cruisers = wide faint swells, low traffic = tight sharp
+ * wakes), and which deepen when an aircraft is descending. Interference
+ * patterns between wakes are the point — the 'persistence' knob maps to the
+ * sim's attenuation so ripples can linger and overlap.
+ *
+ * The old single "virtual cursor" + synthetic PointerEvent apparatus (one
+ * aircraft at a time, focus-slew streaks across the screen) is gone; the
+ * lib's addDrop API is called directly in normalized [-1,1] coords.
+ *
+ * The water texture is generated from the palette ramp (deep-night pools of
+ * the palette's own light), regenerated on palette swap; a user background
+ * image overrides it as the liquid surface.
  */
 class RippleVisualization extends AircraftVisualization {
   constructor(canvas, ctx) {
@@ -12,27 +27,21 @@ class RippleVisualization extends AircraftVisualization {
     this.liquidApp = null;
     this.initialized = false;
     this.active = false;
-
-    // Virtual pointer — smoothly follows aircraft
-    this.virtualX = null;
-    this.virtualY = null;
-    this.focusIndex = 0;
-    this.focusStartTime = 0;
+    this._dropOffset = 0;
+    this._raining = false;
+    this._baseAttenuation = null;
 
     Object.assign(this.options, {
       backgroundImage: '',
       displacementScale: 5,
       metalness: 0.75,
       roughness: 0.25,
-      focusDuration: 3000,
-      trackingSpeed: 0.25,
-      trackAllAircraft: false
+      persistence: 0.5
     });
   }
 
   get extraOptionKeys() {
-    return ['displacementScale', 'metalness', 'roughness', 'focusDuration',
-            'trackingSpeed', 'trackAllAircraft'];
+    return ['displacementScale', 'metalness', 'roughness', 'persistence'];
   }
 
   onOptionsChanged(options) {
@@ -43,16 +52,40 @@ class RippleVisualization extends AircraftVisualization {
       if (this.liquidApp.liquidPlane.uniforms?.displacementScale) {
         this.liquidApp.liquidPlane.uniforms.displacementScale.value = this.options.displacementScale;
       }
+      this._applyPersistence();
     }
 
     // Handle background image as liquid texture (clearing it reverts to the
-    // generated dark-water texture)
-    if (options.backgroundImage !== undefined && options.backgroundImage !== this.options.backgroundImage) {
-      this.options.backgroundImage = options.backgroundImage;
+    // palette-tinted dark-water texture)
+    if (options.backgroundImage !== undefined && options.backgroundImage !== this._appliedBackground) {
+      this._appliedBackground = options.backgroundImage;
       if (this.liquidApp) {
         this.liquidApp.loadImage(options.backgroundImage || this._darkWaterTexture());
       }
     }
+  }
+
+  onPaletteChanged() {
+    if (this.liquidApp && !this.options.backgroundImage) {
+      this.liquidApp.loadImage(this._darkWaterTexture());
+    }
+  }
+
+  /**
+   * persistence 0..1 → sim attenuation. 0.5 keeps the library default;
+   * higher lets ripples ring and interfere, lower calms the water fast.
+   * The attenuation semantic is "damping per step, just below 1", so we
+   * scale its distance from 1 and clamp away from runaway.
+   */
+  _applyPersistence() {
+    try {
+      const lp = this.liquidApp?.liquidPlane;
+      if (!lp || lp.attenuation === undefined) return;
+      if (this._baseAttenuation == null) this._baseAttenuation = lp.attenuation;
+      const gap = 1 - this._baseAttenuation;
+      const factor = 2 - 2 * this.options.persistence; // 1.0 at p=.5, 0 at p=1
+      lp.attenuation = Math.min(0.9995, 1 - gap * Math.max(0.15, factor));
+    } catch (e) { /* vendored internals — degrade silently */ }
   }
 
   isActive() { return this.active; }
@@ -78,9 +111,9 @@ class RippleVisualization extends AircraftVisualization {
     }
 
     try {
-      // Block real mouse/pointer/touch events at WINDOW level BEFORE library init.
-      // The library may register event handlers on window/document during init.
-      // By adding our capture-phase handler first, we can block trusted events.
+      // Block real mouse/pointer/touch events at WINDOW level BEFORE library
+      // init — the lib listens for trusted pointer events on the document and
+      // a wandering mouse must not disturb the artwork.
       this._blockMouseEvents();
 
       // Vendored locally (was cdn.jsdelivr.net) — a 24/7 kiosk must not
@@ -89,19 +122,17 @@ class RippleVisualization extends AircraftVisualization {
 
       this.liquidApp = LiquidBackground(this.rippleCanvas);
 
-      // Liquid surface texture: the user's image, or a generated deep-night
-      // gradient. Without any texture the library renders a stark white
-      // liquid — the worst possible default for a dark ambient display.
-      if (this.options.backgroundImage) {
-        this.liquidApp.loadImage(this.options.backgroundImage);
-      } else {
-        this.liquidApp.loadImage(this._darkWaterTexture());
-      }
+      // Liquid surface texture: the user's image, or the palette-tinted
+      // deep-night water. Without any texture the library renders a stark
+      // white liquid — the worst possible default for a dark ambient display.
+      this._appliedBackground = this.options.backgroundImage || '';
+      this.liquidApp.loadImage(this.options.backgroundImage || this._darkWaterTexture());
 
       this.liquidApp.liquidPlane.material.metalness = this.options.metalness;
       this.liquidApp.liquidPlane.material.roughness = this.options.roughness;
       this.liquidApp.liquidPlane.uniforms.displacementScale.value = this.options.displacementScale;
       this.liquidApp.setRain(false);
+      this._applyPersistence();
 
       // Also force pointer-events:none on the canvas itself
       this.rippleCanvas.style.pointerEvents = 'none';
@@ -115,28 +146,32 @@ class RippleVisualization extends AircraftVisualization {
   }
 
   /**
-   * Generated deep-night water texture (radial gradient with faint nebula
-   * accents) — no external asset, kiosk-safe.
+   * Generated deep-night water texture, tinted from the palette ramp —
+   * pools of the palette's own light catching the displacement. No external
+   * asset, kiosk-safe.
    */
   _darkWaterTexture() {
+    const ramp = this.palette?.ramp || ['#071019', '#0e3a40', '#16847e', '#52e0c4', '#b79cff'];
+    const rgb = (hex) => `${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}`;
+
     const c = document.createElement('canvas');
     c.width = c.height = 1024;
     const g = c.getContext('2d');
 
     const base = g.createRadialGradient(512, 400, 80, 512, 512, 780);
-    base.addColorStop(0, '#1c2f52');
-    base.addColorStop(0.5, '#0c1730');
-    base.addColorStop(1, '#040810');
+    base.addColorStop(0, `rgba(${rgb(ramp[1])}, 1)`);
+    base.addColorStop(0.55, `rgba(${rgb(ramp[0])}, 1)`);
+    base.addColorStop(1, '#020407');
     g.fillStyle = base;
     g.fillRect(0, 0, 1024, 1024);
 
-    // Cool glow pools — luminance variation is what makes the liquid's
+    // Glow pools — luminance variation is what makes the liquid's
     // displacement visibly catch light
     const pools = [
-      { x: 280, y: 300, r: 340, color: 'rgba(50, 110, 200, 0.45)' },
-      { x: 760, y: 640, r: 400, color: 'rgba(90, 60, 190, 0.35)' },
-      { x: 560, y: 180, r: 260, color: 'rgba(0, 190, 215, 0.30)' },
-      { x: 180, y: 800, r: 300, color: 'rgba(20, 140, 170, 0.25)' }
+      { x: 280, y: 300, r: 340, color: `rgba(${rgb(ramp[2])}, 0.40)` },
+      { x: 760, y: 640, r: 400, color: `rgba(${rgb(ramp[4])}, 0.22)` },
+      { x: 560, y: 180, r: 260, color: `rgba(${rgb(ramp[3])}, 0.26)` },
+      { x: 180, y: 800, r: 300, color: `rgba(${rgb(ramp[2])}, 0.20)` }
     ];
     for (const p of pools) {
       const glow = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
@@ -160,9 +195,9 @@ class RippleVisualization extends AircraftVisualization {
     eventTypes.forEach(type => {
       const blocker = (e) => {
         if (!this.active || !e.isTrusted) return;
-        // Don't block UI elements (settings, mode selector, buttons, etc.)
+        // Don't block UI elements (settings panel, hint pill, inputs, etc.)
         if (e.target && e.target.closest &&
-            e.target.closest('#settingsPanel, .settings-btn, .mode-selector, .info-overlay, button, input, select, textarea, label, a')) {
+            e.target.closest('#settingsPanel, .hint-pill, .info-overlay, button, input, select, textarea, label, a')) {
           return;
         }
         e.stopImmediatePropagation();
@@ -189,53 +224,52 @@ class RippleVisualization extends AircraftVisualization {
     }
     this.liquidApp = null;
     this.initialized = false;
-    this.virtualX = null;
-    this.virtualY = null;
+    this._baseAttenuation = null;
+    this._raining = false;
     this._removeMouseBlockers();
   }
 
-  /** Drive the liquid effect with virtual pointer(s) */
+  /** Every aircraft wakes the water — drops fed straight into the sim */
   onActiveAircraft(activeAircraft, now) {
-    if (activeAircraft.length === 0 || !this.initialized || !this.rippleCanvas) return;
+    if (!this.initialized || !this.liquidApp?.liquidPlane?.addDrop) return;
 
-    const rect = this.rippleCanvas.getBoundingClientRect();
+    // Idle life: with an empty sky, sparse ambient rain keeps the surface
+    // alive overnight (never under the deterministic pixel guard)
+    const wantRain = activeAircraft.length === 0 && !window.__DETERMINISTIC__;
+    if (wantRain !== this._raining) {
+      this._raining = wantRain;
+      try {
+        this.liquidApp.setRain(wantRain);
+        if (wantRain && this.liquidApp.setRainTime) this.liquidApp.setRainTime(3.5);
+      } catch (e) { /* ok */ }
+    }
+    if (!activeAircraft.length) return;
 
-    if (this.options.trackAllAircraft) {
-      // Round-robin cap: an event per aircraft per frame is a perf footgun
-      // at 50+ aircraft (3000+ synthetic events/sec through the WebGL lib).
-      // 12/frame still touches every aircraft several times a second.
-      const cap = Math.min(activeAircraft.length, 12);
-      this._trackAllOffset = ((this._trackAllOffset || 0) + cap) % activeAircraft.length;
-      for (let i = 0; i < cap; i++) {
-        const ac = activeAircraft[(this._trackAllOffset + i) % activeAircraft.length];
-        this.rippleCanvas.dispatchEvent(new PointerEvent('pointermove', {
-          clientX: ac.x + rect.left,
-          clientY: ac.y + rect.top,
-          bubbles: true
-        }));
-      }
-    } else {
-      // Single smooth virtual pointer cycling through aircraft
-      if (!this.focusStartTime || now - this.focusStartTime > this.options.focusDuration) {
-        this.focusIndex = (this.focusIndex + 1) % activeAircraft.length;
-        this.focusStartTime = now;
-      }
+    const w = this.rippleCanvas.clientWidth || window.innerWidth;
+    const h = this.rippleCanvas.clientHeight || window.innerHeight;
 
-      const target = activeAircraft[this.focusIndex % activeAircraft.length];
+    // Cap sim work per frame; rotate so every aircraft still wakes the
+    // water several times a second at full traffic
+    const cap = Math.min(activeAircraft.length, 16);
+    this._dropOffset = (this._dropOffset + cap) % activeAircraft.length;
 
-      if (this.virtualX == null) {
-        this.virtualX = target.x;
-        this.virtualY = target.y;
-      }
+    for (let i = 0; i < cap; i++) {
+      const ac = activeAircraft[(this._dropOffset + i) % activeAircraft.length];
+      const v = ac.velocity || 0;
+      if (v <= 1) continue; // still aircraft leave still water (fixture-safe)
 
-      this.virtualX += (target.x - this.virtualX) * this.options.trackingSpeed;
-      this.virtualY += (target.y - this.virtualY) * this.options.trackingSpeed;
+      const fade = ac.flight?.opacity ?? 1;
+      const altT = Math.min((ac.altitude || 0) / 38000, 1);
+      const descending = (ac.flight?.verticalRate ?? 0) < -300;
 
-      this.rippleCanvas.dispatchEvent(new PointerEvent('pointermove', {
-        clientX: this.virtualX + rect.left,
-        clientY: this.virtualY + rect.top,
-        bubbles: true
-      }));
+      // Speed → strength, altitude → radius, descent → weight
+      let strength = (0.0008 + Math.min(v / 500, 1) * 0.0030) * fade;
+      if (descending) strength *= 1.45;
+      const radius = 0.014 + altT * 0.030;
+
+      const nx = (ac.x / w) * 2 - 1;
+      const ny = -((ac.y / h) * 2 - 1);
+      this.liquidApp.liquidPlane.addDrop(nx, ny, radius, strength);
     }
   }
 

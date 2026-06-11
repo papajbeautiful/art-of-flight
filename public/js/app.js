@@ -28,6 +28,8 @@ if (window.__NO_CHROME__) {
 }
 
 if (window.__DETERMINISTIC__) {
+  // CSS hook: continuous decorative animations are disabled under the guard
+  document.documentElement.classList.add('deterministic');
   // Seeded PRNG (mulberry32) so per-frame randomness is reproducible
   let __seed = 0x2F6E2B1;
   Math.random = function () {
