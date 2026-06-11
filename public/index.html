@@ -10,9 +10,7 @@
 </head>
 <body>
   <div id="rippleLayer"><canvas id="rippleCanvas"></canvas></div>
-  <div id="gridLayer"><canvas id="gridCanvas"></canvas></div>
   <div id="waveLayer"><canvas id="waveCanvas"></canvas></div>
-  <div id="tubesLayer"><canvas id="tubesCanvas"></canvas></div>
   <div id="mapContainer"></div>
   <div id="departuresLayer">
     <div class="board-frame">
@@ -40,111 +38,16 @@
     <div class="signal-detail" id="signalDetail"></div>
   </div>
 
-  <!-- UI Overlay -->
+  <!-- Quiet chrome: title fades with idle; pill is the only pointer entry -->
   <div class="ui-overlay" id="uiOverlay">
     <div class="app-title">theARTofFLIGHT</div>
-
-    <!-- Settings Button -->
-    <button id="settingsBtn" class="settings-btn" title="Configure" aria-label="Open settings">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-        <line x1="4" y1="6" x2="20" y2="6"/>
-        <line x1="4" y1="12" x2="20" y2="12"/>
-        <line x1="4" y1="18" x2="20" y2="18"/>
-        <circle cx="9" cy="6" r="2.5" fill="currentColor" stroke="none"/>
-        <circle cx="16" cy="12" r="2.5" fill="currentColor" stroke="none"/>
-        <circle cx="11" cy="18" r="2.5" fill="currentColor" stroke="none"/>
-      </svg>
+    <button id="hintPill" class="hint-pill" aria-label="Open settings">
+      <kbd>S</kbd><span>settings</span><i></i><kbd>1–0</kbd><span>modes</span><i></i><kbd>I</kbd><span>info</span>
     </button>
-
-    <!-- Mode Selector -->
-    <nav class="mode-selector">
-      <button class="mode-btn active" data-mode="ripple" title="Ripple Mode">
-        <svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="2.5"/>
-          <circle cx="12" cy="12" r="6" opacity="0.5"/>
-          <circle cx="12" cy="12" r="10" opacity="0.25"/>
-        </svg>
-        <span class="mode-label">Ripple</span>
-      </button>
-      <button class="mode-btn" data-mode="reality" title="Reality Mode">
-        <svg class="mode-icon" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 3l-5 16 5-5 5 5z"/>
-        </svg>
-        <span class="mode-label">Reality</span>
-      </button>
-      <button class="mode-btn" data-mode="birds" title="Grid Mode">
-        <svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3" y="3" width="7" height="7" opacity="0.8"/>
-          <rect x="14" y="3" width="7" height="7" opacity="0.4"/>
-          <rect x="3" y="14" width="7" height="7" opacity="0.4"/>
-          <rect x="14" y="14" width="7" height="7" opacity="0.6"/>
-        </svg>
-        <span class="mode-label">Grid</span>
-      </button>
-      <button class="mode-btn" data-mode="constellation" title="Waves Mode">
-        <svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round">
-          <path d="M2 6h20"/>
-          <path d="M2 10c4-3 8 3 10 0s6-3 10 0"/>
-          <path d="M2 14c4 3 8-3 10 0s6 3 10 0"/>
-          <path d="M2 18h20"/>
-        </svg>
-        <span class="mode-label">Waves</span>
-      </button>
-      <button class="mode-btn" data-mode="tubes" title="Tubes Mode">
-        <svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-          <path d="M4 4c4 8 8 12 16 16"/>
-          <path d="M4 12c4 4 8 4 16 8" opacity="0.6"/>
-          <path d="M4 20c4-4 8-8 16-12" opacity="0.3"/>
-        </svg>
-        <span class="mode-label">Tubes</span>
-      </button>
-      <button class="mode-btn" data-mode="map" title="Map Mode">
-        <svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3" y="3" width="18" height="18" rx="1"/>
-          <line x1="3" y1="12" x2="21" y2="12" opacity="0.3"/>
-          <line x1="12" y1="3" x2="12" y2="21" opacity="0.3"/>
-          <circle cx="12" cy="12" r="2.5" fill="currentColor" opacity="0.6"/>
-        </svg>
-        <span class="mode-label">Map</span>
-      </button>
-      <button class="mode-btn" data-mode="patterns" title="Flight Patterns">
-        <svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round">
-          <path d="M2 12c4-8 8-8 10 0s6 8 10 0"/>
-          <path d="M2 8c4-6 8-6 10 0s6 6 10 0" opacity="0.5"/>
-          <path d="M2 16c4-6 8-6 10 0s6 6 10 0" opacity="0.5"/>
-        </svg>
-        <span class="mode-label">Patterns</span>
-      </button>
-      <button class="mode-btn" data-mode="contrails" title="Contrails Mode">
-        <svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
-          <path d="M3 20L17 6" opacity="0.4"/>
-          <path d="M5 21L19 7" opacity="0.7"/>
-          <circle cx="19.5" cy="6.5" r="1.6" fill="currentColor" stroke="none"/>
-          <path d="M8 21l9-9" opacity="0.25"/>
-        </svg>
-        <span class="mode-label">Contrails</span>
-      </button>
-      <button class="mode-btn" data-mode="radar" title="Radar Mode">
-        <svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
-          <circle cx="12" cy="12" r="9"/>
-          <circle cx="12" cy="12" r="4.5" opacity="0.4"/>
-          <path d="M12 12L19 5" stroke-linecap="round"/>
-          <path d="M12 12L19 5A9 9 0 0 1 21 12z" fill="currentColor" opacity="0.25" stroke="none"/>
-          <circle cx="8" cy="15" r="1.3" fill="currentColor" stroke="none"/>
-        </svg>
-        <span class="mode-label">Radar</span>
-      </button>
-      <button class="mode-btn" data-mode="departures" title="Departure Board">
-        <svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
-          <rect x="3" y="4" width="18" height="16" rx="1.5"/>
-          <line x1="6" y1="8.5" x2="18" y2="8.5" opacity="0.8"/>
-          <line x1="6" y1="12" x2="18" y2="12" opacity="0.55"/>
-          <line x1="6" y1="15.5" x2="14" y2="15.5" opacity="0.3"/>
-        </svg>
-        <span class="mode-label">Board</span>
-      </button>
-    </nav>
   </div>
+
+  <!-- Mode toast (keyboard mode switches) -->
+  <div id="modeToast" class="mode-toast" aria-hidden="true"></div>
 
   <!-- Info Overlay -->
   <div id="infoOverlay" class="info-overlay hidden">
@@ -156,10 +59,12 @@
   </div>
 
   <!-- Settings Panel -->
-  <div id="settingsPanel" class="settings-panel" role="dialog" aria-modal="false" aria-label="Settings">
+  <div id="settingsPanel" class="settings-panel" role="dialog" aria-modal="true" aria-label="Settings">
     <div class="settings-content">
       <div class="settings-header">
-        <h2>CONFIGURE</h2>
+        <h2>theARTofFLIGHT</h2>
+        <nav class="settings-nav" id="settingsNav"></nav>
+        <span id="savedFlash" class="saved-flash" aria-hidden="true">saved</span>
         <button id="closeSettings" class="close-btn" title="Close" aria-label="Close settings">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
             <line x1="6" y1="6" x2="18" y2="18"/>
@@ -167,10 +72,9 @@
           </svg>
         </button>
       </div>
-      <div class="settings-tabs" id="settingsTabs"></div>
-      <div class="settings-tab-content" id="settingsTabContent"></div>
-      <div class="settings-actions">
-        <button id="saveSettings" class="btn btn-primary"><span>Save</span></button>
+      <div class="settings-body" id="settingsBody"></div>
+      <div class="settings-footer">
+        <span class="kbd-hints"><kbd>S</kbd> settings <kbd>I</kbd> info <kbd>F</kbd> fullscreen <kbd>1–0</kbd> modes <kbd>←→</kbd> cycle <kbd>Esc</kbd> close</span>
         <button id="resetSettings" class="btn btn-secondary"><span>Reset</span></button>
       </div>
     </div>
@@ -188,6 +92,7 @@
       document.addEventListener('mousemove', r);
       document.addEventListener('mousedown', r);
       document.addEventListener('touchstart', r);
+      document.addEventListener('keydown', r);
       r();
     })();
   </script>
@@ -196,16 +101,17 @@
   <script src="/js/positionPredictor.js"></script>
   <script src="/js/coordinateSystem.js"></script>
   <script src="/js/aircraftIcons.js"></script>
+  <script src="/js/palettes.js"></script>
   <script src="/js/visualizations/aircraftVisualization.js"></script>
-  <script src="/js/visualizations/ripple.js"></script>
-  <script src="/js/visualizations/reality.js"></script>
-  <script src="/js/visualizations/birds.js"></script>
-  <script src="/js/visualizations/constellation.js"></script>
-  <script src="/js/visualizations/tubes.js"></script>
-  <script src="/js/visualizations/map.js"></script>
+  <script src="/js/visualizations/aurora.js"></script>
+  <script src="/js/visualizations/ink.js"></script>
   <script src="/js/visualizations/patterns.js"></script>
   <script src="/js/visualizations/contrails.js"></script>
+  <script src="/js/visualizations/ripple.js"></script>
+  <script src="/js/visualizations/constellation.js"></script>
   <script src="/js/visualizations/radar.js"></script>
+  <script src="/js/visualizations/reality.js"></script>
+  <script src="/js/visualizations/map.js"></script>
   <script src="/js/visualizations/departures.js"></script>
   <script src="/js/flightManager.js"></script>
   <script src="/js/settings.js"></script>

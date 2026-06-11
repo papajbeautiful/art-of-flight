@@ -1,16 +1,17 @@
 /**
- * E2E test: runtime mode switching via the bottom mode bar.
+ * E2E test: runtime mode switching via the keyboard (digit shortcuts).
  *
  * Screenshot baselines load each mode fresh (?mode=X) — they never exercise
  * clear(), layer show/hide, WebGL teardown, or the 1s crossfade where two
- * modes update+draw simultaneously. This sweep clicks through every mode
- * (twice, including WebGL->WebGL and canvas->layer transitions) and fails
- * on any page error or console error.
+ * modes update+draw simultaneously. This sweep presses each mode's digit
+ * key (the only mode switcher outside the settings panel) through every
+ * mode (twice, including the nasty transitions) and fails on any page
+ * error or console error.
  *
  * It also asserts layer teardown after every transition: a layer div that
  * fails to hide on switch-away throws nothing and self-heals never — on a
  * 24/7 kiosk it would sit on top of every subsequent mode. We read computed
- * display on all six layer containers and require exactly the active
+ * display on all layer containers and require exactly the active
  * mode's layer (if any) to be visible.
  *
  * Run: node tools/test-mode-switching.mjs
@@ -25,30 +26,35 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 const PORT = 3196;
 
+// Digit-key order — must match MODE_ORDER in public/js/settings.js
+const MODE_ORDER = ['aurora', 'ink', 'patterns', 'contrails', 'ripple',
+  'constellation', 'radar', 'reality', 'map', 'departures'];
+
 // Two full cycles plus deliberately nasty transitions:
-// WebGL->WebGL (ripple->tubes), opaque-canvas->opaque-canvas
+// accum->accum (aurora->ink), opaque-canvas->opaque-canvas
 // (contrails->radar), DOM->WebGL (departures->ripple), map round-trips.
 const SEQUENCE = [
-  'reality', 'birds', 'constellation', 'tubes', 'map', 'patterns',
+  'reality', 'aurora', 'ink', 'constellation', 'map', 'patterns',
   'contrails', 'radar', 'departures', 'ripple',
-  'tubes', 'contrails', 'radar', 'departures', 'ripple',
-  'map', 'reality', 'patterns', 'birds', 'constellation', 'ripple'
+  'aurora', 'contrails', 'radar', 'departures', 'ripple',
+  'map', 'reality', 'patterns', 'ink', 'constellation', 'ripple'
 ];
 
 // Display-toggled layer containers and the one mode each belongs to.
-// Modes not listed here (reality/patterns/contrails/radar) draw on the
-// shared #canvas — for those, ALL layer divs must be hidden.
+// Modes not listed here (reality/patterns/contrails/radar/aurora/ink) draw
+// on the shared #canvas — for those, ALL layer divs must be hidden.
 const LAYER_OWNERS = {
   rippleLayer: 'ripple',
-  gridLayer: 'birds',
   waveLayer: 'constellation',
-  tubesLayer: 'tubes',
   mapContainer: 'map',
   departuresLayer: 'departures'
 };
 
 function findBrowser() {
   const candidates = [
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
     'C:/Program Files/Google/Chrome/Application/chrome.exe',
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
   ];
@@ -82,7 +88,8 @@ try {
 
   for (const mode of SEQUENCE) {
     const before = problems.length;
-    await page.click(`.mode-btn[data-mode="${mode}"]`, { force: true });
+    const digit = String((MODE_ORDER.indexOf(mode) + 1) % 10);
+    await page.keyboard.press(digit);
     await page.waitForTimeout(1600); // 1s crossfade + clear() of previous mode
 
     // Layer teardown: exactly the active mode's layer (if any) may be visible

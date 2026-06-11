@@ -32,7 +32,7 @@ const fixtureArg = args.find(a => a.startsWith('--fixture='));
 const FIXTURE = fixtureArg ? fixtureArg.split('=')[1] : '1'; // '1' static (pixel guard) | 'moving' (motion review)
 const settleArg = args.find(a => a.startsWith('--settle='));
 
-const ALL_MODES = ['ripple', 'reality', 'birds', 'constellation', 'tubes', 'map', 'patterns', 'contrails', 'radar', 'departures'];
+const ALL_MODES = ['aurora', 'ink', 'patterns', 'contrails', 'ripple', 'constellation', 'radar', 'reality', 'map', 'departures'];
 const MODES = modesArg ? modesArg.split('=')[1].split(',') : ALL_MODES;
 const PORT = portArg ? parseInt(portArg.split('=')[1], 10) : 3177;
 // > 3s idle-fade + 0.8s chrome fade + fade-in/easing convergence; the moving
@@ -57,13 +57,16 @@ const serverReady = new Promise((resolve, reject) => {
 
 function findBrowser() {
   const candidates = [
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/google-chrome',
     'C:/Program Files/Google/Chrome/Application/chrome.exe',
     'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
     'C:/Program Files/Microsoft/Edge/Application/msedge.exe'
   ];
   const found = candidates.find(p => fs.existsSync(p));
-  if (!found) throw new Error('No Chrome/Edge found for screenshots');
+  if (!found) throw new Error('No Chrome/Edge/Chromium found for screenshots');
   return found;
 }
 

@@ -1,6 +1,15 @@
 /**
  * Main Application
- * theARTofFLIGHT - Museum-grade flight visualization art installation
+ * theARTofFLIGHT - live aircraft as art, 24/7
+ *
+ * Chrome philosophy: the art owns the screen. No buttons on load.
+ *   S        settings panel
+ *   I        info overlay
+ *   F        fullscreen
+ *   1-9, 0   direct mode select (MODE_ORDER)
+ *   ← / →    cycle modes
+ *   Esc      close settings
+ * Moving the mouse reveals a hint pill (clickable, fades with idle).
  */
 
 // URL overrides (testing/kiosk):
@@ -10,10 +19,11 @@
 const URL_PARAMS = new URLSearchParams(window.location.search);
 window.__DETERMINISTIC__ = URL_PARAMS.get('deterministic') === '1';
 
-// ?chrome=0 — embed/background mode: hide the settings button and mode
-// selector entirely (used by the Panarea dash, which drives the mode via
-// ?mode= and must never flash UI chrome over the visualization).
-if (URL_PARAMS.get('chrome') === '0') {
+// ?chrome=0 — embed/background mode: hide ALL chrome (pill, toast, panel,
+// title) — used by the Panarea dash, which drives the mode via ?mode= and
+// must never flash UI over the visualization.
+window.__NO_CHROME__ = URL_PARAMS.get('chrome') === '0';
+if (window.__NO_CHROME__) {
   document.documentElement.classList.add('no-chrome');
 }
 
@@ -41,29 +51,34 @@ class TheArtOfFlight {
     // Initialize stable coordinate system
     this.coordSystem = new CoordinateSystem(this.canvas);
 
-    // Per-mode background images: { mode: { image: Image, url: string } }
-    this.backgroundImages = {};
+    // Single shared background image (Look → background)
+    this.backgroundImage = null; // { image: Image, url: string }
 
     // Initialize visualizations
     this.visualizations = {
-      ripple: new RippleVisualization(this.canvas, this.ctx),
-      reality: new RealityVisualization(this.canvas, this.ctx),
-      birds: new BirdsVisualization(this.canvas, this.ctx),
-      constellation: new ConstellationVisualization(this.canvas, this.ctx),
-      tubes: new TubesVisualization(this.canvas, this.ctx),
-      map: new MapVisualization(this.canvas, this.ctx),
+      aurora: new AuroraVisualization(this.canvas, this.ctx),
+      ink: new InkVisualization(this.canvas, this.ctx),
       patterns: new PatternsVisualization(this.canvas, this.ctx),
       contrails: new ContrailsVisualization(this.canvas, this.ctx),
+      ripple: new RippleVisualization(this.canvas, this.ctx),
+      constellation: new ConstellationVisualization(this.canvas, this.ctx),
       radar: new RadarVisualization(this.canvas, this.ctx),
+      reality: new RealityVisualization(this.canvas, this.ctx),
+      map: new MapVisualization(this.canvas, this.ctx),
       departures: new DeparturesVisualization(this.canvas, this.ctx)
     };
 
-    // ?mode= URL override (session-only; not persisted unless the user saves)
-    const urlMode = URL_PARAMS.get('mode');
-    if (urlMode && this.visualizations[urlMode]) {
-      this.settingsManager.set('mode', urlMode);
-      this.settingsManager.updateUI();
-    }
+    // Modes that live on their own DOM layer (shown/hidden on switch)
+    this.layerModes = {
+      map: { show: 'showMap', hide: 'hideMap' },
+      ripple: { show: 'showRipples', hide: 'hideRipples' },
+      constellation: { show: 'show', hide: 'hide' },
+      departures: { show: 'show', hide: 'hide' }
+    };
+
+    // ?mode= URL override (session-only; aliases accepted: waves/board/grid…)
+    const urlMode = resolveModeKey(URL_PARAMS.get('mode'));
+    if (urlMode) this.settingsManager.set('mode', urlMode);
 
     this.currentMode = this.settingsManager.get('mode');
     this.previousMode = null;
@@ -79,7 +94,11 @@ class TheArtOfFlight {
     window.addEventListener('resize', () => this.resizeCanvas());
 
     // Show initial mode's layer
-    this.activateModeLayer(this.currentMode);
+    if (this.layerModes[this.currentMode]) {
+      const viz = this.visualizations[this.currentMode];
+      const method = this.layerModes[this.currentMode].show;
+      if (viz[method]) viz[method]();
+    }
 
     this.applySettings(this.settingsManager.settings);
 
@@ -87,18 +106,73 @@ class TheArtOfFlight {
       this.applySettings(settings);
     });
 
+    this.initKeyboard();
+    this.initHintPill();
+
+    this.start();
+  }
+
+  // ─── Chrome: keyboard, toast, hint pill ─────────────────
+
+  initKeyboard() {
     document.addEventListener('keydown', (e) => {
       // Don't hijack keys while typing in settings fields
       if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-      if (e.key === 'i' || e.key === 'I') {
+      const k = e.key;
+      if (k === 'i' || k === 'I') {
         this.settingsManager.toggleInfo();
-      } else if (e.key === 'f' || e.key === 'F') {
+      } else if (k === 'f' || k === 'F') {
         this.toggleFullscreen();
+      } else if ((k === 's' || k === 'S') && !window.__NO_CHROME__) {
+        this.settingsManager.toggle();
+      } else if (/^[0-9]$/.test(k)) {
+        const idx = (parseInt(k, 10) + 9) % 10; // '1'→0 … '9'→8, '0'→9
+        const mode = MODE_ORDER[idx];
+        if (mode) this.userSwitchMode(mode);
+      } else if (k === 'ArrowRight' || k === 'ArrowLeft') {
+        const dir = k === 'ArrowRight' ? 1 : -1;
+        const idx = MODE_ORDER.indexOf(this.currentMode);
+        const mode = MODE_ORDER[(idx + dir + MODE_ORDER.length) % MODE_ORDER.length];
+        this.userSwitchMode(mode);
       }
     });
+  }
 
-    this.start();
+  /** Mode switch triggered by the user (keyboard) — toast + persist. */
+  userSwitchMode(mode) {
+    if (!this.visualizations[mode] || mode === this.currentMode) return;
+    this.settingsManager.set('mode', mode);
+    this.settingsManager.applyChange();
+    this.showModeToast(MODE_META[mode].label);
+  }
+
+  showModeToast(label) {
+    if (window.__NO_CHROME__ || window.__DETERMINISTIC__) return;
+    const toast = document.getElementById('modeToast');
+    if (!toast) return;
+    toast.textContent = label;
+    toast.classList.remove('show');
+    // force reflow so the animation restarts
+    void toast.offsetWidth;
+    toast.classList.add('show');
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
+  initHintPill() {
+    if (window.__NO_CHROME__) return;
+    const pill = document.getElementById('hintPill');
+    if (!pill) return;
+
+    pill.addEventListener('click', () => this.settingsManager.open());
+
+    // First-ever run: hold the hint on screen for a friendly beat
+    if (!window.__DETERMINISTIC__ && !localStorage.getItem('theARTofFLIGHT_settings')) {
+      document.body.classList.add('first-run');
+      setTimeout(() => document.body.classList.remove('first-run'), 10000);
+    }
   }
 
   resizeCanvas() {
@@ -115,6 +189,8 @@ class TheArtOfFlight {
   get viewWidth() { return this.canvas.clientWidth || window.innerWidth; }
   get viewHeight() { return this.canvas.clientHeight || window.innerHeight; }
 
+  // ─── Settings distribution ──────────────────────────────
+
   applySettings(settings) {
     // Update flight manager
     this.flightManager.setLocation(
@@ -126,51 +202,88 @@ class TheArtOfFlight {
     this.flightManager.setUpdateInterval(settings.updateInterval);
     this.flightManager.setMaxFlights(settings.maxFlights);
 
-    // Update per-mode background images
-    this.updateBackgroundImages(settings);
+    // Shared background image
+    this.updateBackgroundImage(settings);
 
     // Update visualization mode with transition
     if (this.currentMode !== settings.mode) {
       this.switchMode(settings.mode);
     }
 
-    // Distribute per-mode settings to each visualization
+    // Distribute Look + palette + mode-specific settings
     this.distributeSettings(settings);
 
-    // Apply per-mode UI accent color
-    this.applyUIAccentColor(settings);
+    // Chrome accent from palette
+    this.applyUIAccentColor();
 
     // Update info overlay
     const infoOverlay = document.getElementById('infoOverlay');
-    if (settings.showInfoPanel) {
-      infoOverlay.classList.remove('hidden');
-    } else {
-      infoOverlay.classList.add('hidden');
-    }
+    if (infoOverlay) infoOverlay.classList.toggle('hidden', !settings.showInfoPanel);
   }
 
   /**
-   * Send per-mode settings to each visualization
+   * Compose each mode's options payload: shared Look (mapped to base-class
+   * option keys) + palette colours + that mode's own settings. Modes also
+   * receive the resolved palette object via setPalette().
    */
   distributeSettings(settings) {
-    const modeSettings = settings.modeSettings || {};
+    const look = settings.look;
+    const palette = this.settingsManager.getActivePalette();
+    const labelFlags = this.settingsManager.getLabelFlags();
+
+    const base = {
+      showAirborneAircraft: true,
+      showGroundAircraft: settings.includeGround,
+      aircraftIcon: look.aircraftIcon,
+      aircraftScale: look.aircraftScale,
+      accentColor: palette.primary,
+      inboundColor: palette.inbound,
+      outboundColor: palette.outbound,
+      showTrails: look.trails,
+      trailLength: look.trailLength,
+      ...labelFlags,
+      labelTextScale: look.labelScale,
+      labelBgOpacity: 0.55,
+      labelBgColor: '#000000',
+      inboundLabelFormat: '{airline} {type} from {origin}',
+      outboundLabelFormat: '{airline} {type} to {destination}',
+      backgroundImage: look.background
+    };
 
     Object.keys(this.visualizations).forEach(mode => {
       const viz = this.visualizations[mode];
-      if (viz.setDisplayOptions && modeSettings[mode]) {
-        viz.setDisplayOptions(modeSettings[mode]);
+      if (viz.setPalette) viz.setPalette(palette);
+      if (viz.setDisplayOptions) {
+        viz.setDisplayOptions({ ...base, ...(settings.modeSettings[mode] || {}) });
       }
     });
+
+    // Waves mode hosts the background on its own layer div
+    this.updateLayerBackground('waveLayer', look.background);
   }
 
   /**
-   * Format a flight label using the current mode's labelFormat template.
-   * Variables: {airline}, {type}, {callsign}, {origin}, {destination}, {altitude}, {speed}
-   * Produces text like "Qantas A380 to Melbourne" from "{airline} {type} to {destination}"
-   * Falls back to "Origin → Destination" if no template or no data matches.
+   * Apply the active palette's UI accent to CSS variables
    */
+  applyUIAccentColor() {
+    const palette = this.settingsManager.getActivePalette();
+    const color = palette.ui || '#6fe3cf';
+
+    const root = document.documentElement;
+    root.style.setProperty('--accent', color);
+
+    // Derive dim/glow variants
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    root.style.setProperty('--accent-dim', `rgba(${r}, ${g}, ${b}, 0.15)`);
+    root.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.4)`);
+  }
+
+  // ─── Inbound heuristic + labels (shared with modes) ─────
+
   /**
-   * Determine if a flight is inbound (destination near home) or outbound (origin near home)
+   * Determine if a flight is inbound (destination near home) or outbound
    */
   isInbound(flight) {
     const homeLat = this.settingsManager.settings.latitude;
@@ -196,109 +309,58 @@ class TheArtOfFlight {
   }
 
   formatLabel(flight) {
-    const modeOpts = this.settingsManager.settings.modeSettings?.[this.currentMode] || {};
-
-    // Pick template based on inbound/outbound
     const inbound = this.isInbound(flight);
     const template = inbound
-      ? (modeOpts.inboundLabelFormat || modeOpts.labelFormat || '')
-      : (modeOpts.outboundLabelFormat || modeOpts.labelFormat || '');
+      ? '{airline} {type} from {origin}'
+      : '{airline} {type} to {destination}';
 
     const airline = flight.airlineName || '';
     const type = flight.aircraftType || '';
     const callsign = flight.callsign || '';
     const origin = flight.originCity || '';
     const destination = flight.destinationCity || '';
-    const altitude = flight.altitudeFeet ? `${Math.round(flight.altitudeFeet).toLocaleString()}ft` : '';
-    const speed = flight.velocityKnots ? `${Math.round(flight.velocityKnots)}kts` : '';
 
-    if (template && (origin || destination || airline)) {
+    if (origin || destination || airline) {
       let text = template
         .replace(/\{airline\}/gi, airline)
         .replace(/\{type\}/gi, type)
         .replace(/\{callsign\}/gi, callsign)
         .replace(/\{origin\}/gi, origin)
-        .replace(/\{destination\}/gi, destination)
-        .replace(/\{altitude\}/gi, altitude)
-        .replace(/\{speed\}/gi, speed);
+        .replace(/\{destination\}/gi, destination);
 
-      // Clean up: collapse multiple spaces, trim dangling words like "to" at end
       text = text.replace(/\s{2,}/g, ' ').trim();
       text = text.replace(/\b(to|from|via)\s*$/i, '').trim();
       if (text && text !== callsign) return text;
     }
 
-    // Fallback: classic format
-    if (origin && destination) return `${origin} \u2192 ${destination}`;
+    if (origin && destination) return `${origin} → ${destination}`;
     if (origin) return `From ${origin}`;
     if (destination) return `To ${destination}`;
     return '';
   }
 
-  /**
-   * Apply the active mode's UI accent color to CSS variables
-   */
-  applyUIAccentColor(settings) {
-    const mode = settings.mode || this.currentMode;
-    const modeOpts = settings.modeSettings?.[mode] || {};
-    const color = modeOpts.uiAccentColor || '#00F0FF';
-
-    const root = document.documentElement;
-    root.style.setProperty('--accent', color);
-
-    // Derive dim/glow variants
-    const r = parseInt(color.slice(1, 3), 16);
-    const g = parseInt(color.slice(3, 5), 16);
-    const b = parseInt(color.slice(5, 7), 16);
-    root.style.setProperty('--accent-dim', `rgba(${r}, ${g}, ${b}, 0.15)`);
-    root.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.4)`);
-  }
-
-  activateModeLayer(mode) {
-    const layerMethods = {
-      map: 'showMap',
-      ripple: 'showRipples',
-      birds: 'show',
-      constellation: 'show',
-      tubes: 'show',
-      departures: 'show'
-    };
-    const method = layerMethods[mode];
-    if (method && this.visualizations[mode]?.[method]) {
-      this.visualizations[mode][method]();
-    }
-  }
+  // ─── Mode switching ─────────────────────────────────────
 
   switchMode(newMode) {
     console.log(`Transitioning from ${this.currentMode} to ${newMode}`);
 
-    // If switching TO patterns mode, fully clear canvas first
-    if (newMode === 'patterns') {
+    // Accumulation modes need a clean canvas to start from
+    if (newMode === 'patterns' || newMode === 'aurora' || newMode === 'ink') {
       this.ctx.fillStyle = '#000000';
       this.ctx.fillRect(0, 0, this.viewWidth, this.viewHeight);
     }
 
-    // Show/hide layer-based visualizations
-    const layerModes = {
-      map: { show: 'showMap', hide: 'hideMap' },
-      ripple: { show: 'showRipples', hide: 'hideRipples' },
-      birds: { show: 'show', hide: 'hide' },
-      constellation: { show: 'show', hide: 'hide' },
-      tubes: { show: 'show', hide: 'hide' },
-      departures: { show: 'show', hide: 'hide' }
-    };
-
     // Hide previous layer mode
-    if (layerModes[this.currentMode]) {
+    if (this.layerModes[this.currentMode]) {
       const viz = this.visualizations[this.currentMode];
-      const method = layerModes[this.currentMode].hide;
+      const method = this.layerModes[this.currentMode].hide;
       if (viz[method]) viz[method]();
     }
 
     // Show new layer mode
-    if (layerModes[newMode]) {
+    if (this.layerModes[newMode]) {
       const viz = this.visualizations[newMode];
-      const method = layerModes[newMode].show;
+      const method = this.layerModes[newMode].show;
       if (viz[method]) viz[method]();
     }
 
@@ -334,16 +396,13 @@ class TheArtOfFlight {
     animate();
   }
 
+  // ─── Run loop ───────────────────────────────────────────
+
   async start() {
     if (this.isRunning) return;
 
     this.isRunning = true;
     this.updateStatus('Initializing...');
-
-    // Show ripple layer if starting in ripple mode
-    if (this.currentMode === 'ripple') {
-      this.visualizations.ripple.showRipples();
-    }
 
     await this.updateFlights();
     this.animate();
@@ -472,14 +531,12 @@ class TheArtOfFlight {
 
       const airlineName = flight.airlineName || null;
       const airlineColor = flight.airlineColor || '#888888';
-      const originCity = flight.originCity || null;
-      const destinationCity = flight.destinationCity || null;
 
       // Build route text using label format template
       const routeText = this.formatLabel(flight);
 
       const dataParts = [altitude, speed, distance].filter(Boolean);
-      const dataLine = dataParts.join(' \u2022 ');
+      const dataLine = dataParts.join(' • ');
 
       if (existing && !existing.classList.contains('flight-item-exit')) {
         // Update in-place — just change text content, no re-render
@@ -500,7 +557,7 @@ class TheArtOfFlight {
         }
 
         if (callsignEl) {
-          callsignEl.textContent = flight.callsign + (flight.aircraftType ? ' \u2022 ' + flight.aircraftType : '');
+          callsignEl.textContent = flight.callsign + (flight.aircraftType ? ' • ' + flight.aircraftType : '');
         }
 
         if (routeText) {
@@ -542,7 +599,7 @@ class TheArtOfFlight {
 
         const csEl = document.createElement('div');
         csEl.className = 'flight-callsign';
-        csEl.textContent = flight.callsign + (flight.aircraftType ? ' \u2022 ' + flight.aircraftType : '');
+        csEl.textContent = flight.callsign + (flight.aircraftType ? ' • ' + flight.aircraftType : '');
         el.appendChild(csEl);
 
         if (routeText) {
@@ -584,8 +641,7 @@ class TheArtOfFlight {
 
     // Clear canvas based on mode
     // Layer-based modes need transparent canvas so their DOM layer shows through
-    const layerBasedModes = ['map', 'ripple', 'birds', 'constellation', 'tubes', 'departures'];
-    if (layerBasedModes.includes(this.currentMode)) {
+    if (this.layerModes[this.currentMode]) {
       this.ctx.clearRect(0, 0, this.viewWidth, this.viewHeight);
     } else if (this.currentMode === 'patterns') {
       this.ctx.fillStyle = '#000000';
@@ -625,25 +681,29 @@ class TheArtOfFlight {
       }
     }
 
-    // Draw home marker if enabled for current mode
+    // Draw home marker if enabled (shared Look setting)
     this.drawHomeMarker();
 
     requestAnimationFrame(() => this.animate());
   }
 
   /**
-   * Draw a home location marker on the canvas
+   * Draw a home location marker on the canvas. Colour comes from the
+   * palette's secondary slot — quiet, present, never shouting.
    */
   drawHomeMarker() {
-    const modeOpts = this.settingsManager.settings.modeSettings?.[this.currentMode] || {};
-    if (!modeOpts.showHomeMarker) return;
+    const look = this.settingsManager.settings.look;
+    if (!look.homeMarker) return;
     if (!this.coordSystem?.isLocked) return;
+    // The board is a different object — a marker makes no sense over it
+    if (this.currentMode === 'departures') return;
 
     const lat = this.settingsManager.settings.latitude;
     const lon = this.settingsManager.settings.longitude;
     const pos = this.coordSystem.toScreen(lat, lon);
-    const color = modeOpts.homeMarkerColor || '#FF0055';
-    const icon = modeOpts.homeMarkerIcon || 'crosshair';
+    const palette = this.settingsManager.getActivePalette();
+    const color = palette.secondary;
+    const icon = look.homeMarkerIcon || 'crosshair';
 
     const ctx = this.ctx;
     ctx.save();
@@ -808,52 +868,26 @@ class TheArtOfFlight {
     ctx.restore();
   }
 
-  /**
-   * Check each mode's backgroundImage setting and load/unload as needed
-   */
-  updateBackgroundImages(settings) {
-    const modeSettings = settings.modeSettings || {};
-    const bgModes = ['ripple', 'reality', 'birds', 'constellation', 'tubes', 'patterns'];
+  // ─── Background image (shared Look) ─────────────────────
 
-    bgModes.forEach(mode => {
-      const url = modeSettings[mode]?.backgroundImage || '';
-      const cached = this.backgroundImages[mode];
+  updateBackgroundImage(settings) {
+    const url = settings.look.background || '';
+    const cached = this.backgroundImage;
 
-      // Layer-based modes use CSS backgrounds on their DOM layer divs
-      // Ripple mode uses the image as a liquid texture instead of CSS background
-      const layerDivIds = {
-        birds: 'gridLayer',
-        constellation: 'waveLayer',
-        tubes: 'tubesLayer'
+    if (url && (!cached || cached.url !== url)) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        this.backgroundImage = { image: img, url };
       };
-
-      if (url && (!cached || cached.url !== url)) {
-        // Load new image for this mode
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          this.backgroundImages[mode] = { image: img, url };
-          console.log(`Background loaded for ${mode} mode`);
-
-          // Update layer CSS background for layer-based modes
-          if (layerDivIds[mode]) {
-            this.updateLayerBackground(layerDivIds[mode], url);
-          }
-        };
-        img.onerror = () => {
-          console.error(`Failed to load background for ${mode}:`, url);
-          delete this.backgroundImages[mode];
-        };
-        img.src = url;
-      } else if (!url && cached) {
-        // Clear image for this mode
-        delete this.backgroundImages[mode];
-
-        if (layerDivIds[mode]) {
-          this.updateLayerBackground(layerDivIds[mode], '');
-        }
-      }
-    });
+      img.onerror = () => {
+        console.error('Failed to load background:', url);
+        this.backgroundImage = null;
+      };
+      img.src = url;
+    } else if (!url && cached) {
+      this.backgroundImage = null;
+    }
   }
 
   /**
@@ -873,12 +907,11 @@ class TheArtOfFlight {
   }
 
   drawBackground() {
-    // Layer-based modes use CSS backgrounds on their layer divs, not canvas drawing
-    const layerModes = ['map', 'ripple', 'birds', 'constellation', 'tubes'];
-    if (layerModes.includes(this.currentMode)) return;
-
-    const cached = this.backgroundImages[this.currentMode];
+    // Layer-based modes host backgrounds on their layer divs; accumulation
+    // and sky modes paint their own full-frame art
+    const cached = this.backgroundImage;
     if (!cached || !cached.image) return;
+    if (this.layerModes[this.currentMode]) return;
 
     const img = cached.image;
     const w = this.viewWidth;
@@ -917,13 +950,12 @@ class TheArtOfFlight {
 // Initialize the app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   console.log('%ctheARTofFLIGHT', 'font-size: 24px; font-weight: bold; background: linear-gradient(135deg, #0047FF, #00F0FF); -webkit-background-clip: text; -webkit-text-fill-color: transparent;');
-  console.log('%cMuseum-grade flight visualization', 'font-size: 12px; color: #00F0FF;');
+  console.log('%cLive aircraft as art', 'font-size: 12px; color: #00F0FF;');
 
   const app = new TheArtOfFlight();
 
   window.theArtOfFlight = app;
 
   console.log('System initialized');
-  console.log('Press "I" to toggle data overlay');
-  console.log('Click settings to configure');
+  console.log('S settings · I info · F fullscreen · 1-0 modes · arrows cycle');
 });
