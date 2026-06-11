@@ -1679,3 +1679,11 @@ body.ui-idle * {
     display: none;
   }
 }
+
+/* ?chrome=0 — embed/background mode (e.g. the Panarea dash): no UI chrome,
+   ever. Applied pre-render from app.js so nothing flashes on load. */
+.no-chrome .settings-btn,
+.no-chrome .mode-selector,
+.no-chrome .settings-panel {
+  display: none !important;
+}

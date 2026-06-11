@@ -10,6 +10,13 @@
 const URL_PARAMS = new URLSearchParams(window.location.search);
 window.__DETERMINISTIC__ = URL_PARAMS.get('deterministic') === '1';
 
+// ?chrome=0 — embed/background mode: hide the settings button and mode
+// selector entirely (used by the Panarea dash, which drives the mode via
+// ?mode= and must never flash UI chrome over the visualization).
+if (URL_PARAMS.get('chrome') === '0') {
+  document.documentElement.classList.add('no-chrome');
+}
+
 if (window.__DETERMINISTIC__) {
   // Seeded PRNG (mulberry32) so per-frame randomness is reproducible
   let __seed = 0x2F6E2B1;
