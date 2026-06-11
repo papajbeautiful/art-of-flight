@@ -532,7 +532,7 @@ class SettingsManager {
   renderAbout() {
     return `
       <div class="about-header">
-        <h3>theARTofFLIGHT</h3>
+        <h3>Art of Flight</h3>
         <p class="about-tagline">Live aircraft as art — a 24/7 installation</p>
       </div>
       <div class="tab-columns">

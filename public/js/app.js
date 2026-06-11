@@ -963,7 +963,7 @@ class TheArtOfFlight {
 
 // Initialize the app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('%ctheARTofFLIGHT', 'font-size: 24px; font-weight: bold; background: linear-gradient(135deg, #0047FF, #00F0FF); -webkit-background-clip: text; -webkit-text-fill-color: transparent;');
+  console.log('%cArt of Flight', 'font-size: 24px; font-weight: bold; background: linear-gradient(135deg, #0047FF, #00F0FF); -webkit-background-clip: text; -webkit-text-fill-color: transparent;');
   console.log('%cLive aircraft as art', 'font-size: 12px; color: #00F0FF;');
 
   const app = new TheArtOfFlight();
