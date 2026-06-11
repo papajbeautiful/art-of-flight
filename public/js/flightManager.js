@@ -12,8 +12,11 @@ class FlightManager {
     this.mockMode = new URLSearchParams(window.location.search).get('mock') || '';
 
     // Connection health: timeout + exponential backoff so a struggling
-    // server isn't hammered, and the UI can show a signal-lost state
-    this.fetchTimeout = 8000;
+    // server isn't hammered, and the UI can show a signal-lost state.
+    // Must comfortably exceed the server's worst-case source-chain walk
+    // (3 sources x 5s upstream timeout) or healthy-but-slow responses get
+    // aborted and counted as failures.
+    this.fetchTimeout = 18000;
     this.consecutiveFailures = 0;
     this.backoffUntil = 0;
     this.lastSuccessTime = 0;

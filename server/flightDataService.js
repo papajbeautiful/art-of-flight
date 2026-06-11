@@ -17,7 +17,16 @@ class FlightDataService {
   constructor(options = {}) {
     this.fetch = options.fetchImpl || fetch;
     this.sources = options.sources || POSITION_SOURCES;
-    this.requestTimeout = options.requestTimeout ?? 8000;
+    // Upstream timeout bounds the worst-case chain walk: a dead first
+    // source must not push the whole request past the client's patience
+    // (seen live 12/06/2026: adsb.lol hanging 8s + two more hops = 9.4s
+    // responses, aborted client-side at 8s)
+    this.requestTimeout = options.requestTimeout ?? 5000;
+
+    // Sticky preference: whichever source last DELIVERED aircraft is tried
+    // first on the next request, so a dead or blind source at the head of
+    // the chain stops taxing every poll
+    this.preferredSource = null;
 
     // Short-TTL request dedup (concurrent clients / rapid polls)
     this.cache = new Map();
@@ -123,7 +132,11 @@ class FlightDataService {
     // — its protocol worked, and overnight skies are genuinely empty.
     let emptyFallback = null;
 
-    for (const source of this.sources) {
+    // Preferred (last-delivering) source first; stable order otherwise
+    const order = [...this.sources].sort((a, b) =>
+      (b.name === this.preferredSource) - (a.name === this.preferredSource));
+
+    for (const source of order) {
       if (!this.sourceAvailable(source.name)) continue;
 
       try {
@@ -151,6 +164,7 @@ class FlightDataService {
         this.queueRouteLookups(flights);
         this.attachRoutes(flights);
 
+        this.preferredSource = source.name;
         const payload = { flights, stale: false, dataAgeSeconds: 0, source: source.name };
         this.setCache(cacheKey, payload);
         this.lastGood.set(cacheKey, { flights, timestamp: Date.now(), source: source.name });

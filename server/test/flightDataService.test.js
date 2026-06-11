@@ -91,6 +91,26 @@ test('an empty sky is served when every reachable source agrees', async () => {
   assert.equal(result.source, 'adsb.lol');
 });
 
+test('the source that delivered is tried FIRST on the next request', async () => {
+  // Live failure mode 12/06/2026: a dead head-of-chain source added its
+  // full timeout to EVERY poll (9.4s responses). Once a source delivers,
+  // the next request must go straight to it.
+  const calls = [];
+  const service = makeService(async (url) => {
+    if (url.includes('api.adsb.lol')) { calls.push('adsb.lol'); throw new Error('down'); }
+    if (url.includes('adsb.fi')) { calls.push('adsb.fi'); return okJson({ ac: [] }); }
+    calls.push('airplanes.live');
+    return okJson({ ac: [AC()] });
+  });
+
+  await service.getFlightsInRadius(-33.89, 151.14, 30);   // walks the chain
+  calls.length = 0;
+  const result = await service.getFlightsInRadius(-33.89, 151.14, 30);
+
+  assert.equal(result.source, 'airplanes.live');
+  assert.deepEqual(calls, ['airplanes.live'], 'second request hit only the preferred source');
+});
+
 // ── Serve-stale-on-error ─────────────────────────────────────
 
 test('serves last good payload when every source fails', async () => {
