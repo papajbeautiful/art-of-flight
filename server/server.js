@@ -91,6 +91,11 @@ app.get('/api/health', (req, res) => {
 // Proxies Nominatim so the browser never talks to a third party and the
 // polite User-Agent contract is honoured server-side. User-initiated only.
 const geocodeFetch = require('node-fetch');
+const crypto = require('crypto');
+const os = require('os');
+
+// Wikimedia/Nominatim robot policy: descriptive UA with a contact
+const UA = 'theARTofFLIGHT/2.0 (https://github.com/papajbeautiful/art-of-flight; kiosk art installation) node-fetch/2';
 app.get('/api/geocode', async (req, res) => {
   const q = (req.query.q || '').toString().trim();
   if (!q) return res.status(400).json({ error: 'Missing query parameter: q' });
@@ -126,6 +131,10 @@ app.get('/api/backgrounds/search', async (req, res) => {
   const q = (req.query.q || '').toString().trim();
   if (!q) return res.status(400).json({ error: 'Missing query parameter: q' });
   try {
+    // iiurlwidth=2560 → MediaWiki renders a display-sized thumb (≈0.5-2MB);
+    // originals from ESO/NASA can exceed 100MB and Wikimedia rate-limits
+    // heavy original fetches. The 480px tile thumb is derived from the same
+    // rendition path.
     const url = 'https://commons.wikimedia.org/w/api.php?' + new URLSearchParams({
       action: 'query',
       format: 'json',
@@ -135,10 +144,10 @@ app.get('/api/backgrounds/search', async (req, res) => {
       gsrlimit: '24',
       prop: 'imageinfo',
       iiprop: 'url|size|extmetadata',
-      iiurlwidth: '480'
+      iiurlwidth: '2560'
     });
     const response = await geocodeFetch(url, {
-      headers: { 'User-Agent': 'theARTofFLIGHT/2.0 (kiosk background search; github.com/papajbeautiful/art-of-flight)' },
+      headers: { 'User-Agent': UA },
       timeout: 12000
     });
     if (!response.ok) throw new Error(`Commons HTTP ${response.status}`);
@@ -150,12 +159,16 @@ app.get('/api/backgrounds/search', async (req, res) => {
       .map(p => {
         const ii = (p.imageinfo || [])[0] || {};
         const em = ii.extmetadata || {};
+        const display = ii.thumburl || ii.url;
+        const thumb = display && display.includes('/2560px-')
+          ? display.replace('/2560px-', '/480px-')
+          : display;
         return {
           title: (p.title || '').replace(/^File:/, '').replace(/\.[a-z]+$/i, ''),
           artist: stripTags((em.Artist || {}).value) || 'Unknown',
           license: (em.LicenseShortName || {}).value || 'See source',
-          thumb: ii.thumburl || ii.url,
-          full: ii.url,
+          thumb,
+          full: display,
           width: ii.width || 0
         };
       })
@@ -170,6 +183,12 @@ app.get('/api/backgrounds/search', async (req, res) => {
 
 // Same-origin image proxy: keeps remote backgrounds CORS-clean for canvas
 // and WebGL texture use (the ripple liquid needs same-origin pixels).
+// Successful fetches are cached on disk so a chosen background hits the
+// upstream exactly once — Wikimedia 429s repeat fetchers, and a kiosk
+// reloads daily.
+const BG_CACHE_DIR = path.join(os.tmpdir(), 'aof-bgcache');
+fs.mkdirSync(BG_CACHE_DIR, { recursive: true });
+
 app.get('/api/backgrounds/fetch', async (req, res) => {
   const raw = (req.query.url || '').toString();
   let target;
@@ -185,19 +204,34 @@ app.get('/api/backgrounds/fetch', async (req, res) => {
   if (target.protocol !== 'https:' || looksInternal) {
     return res.status(400).json({ error: 'Refusing to proxy this url' });
   }
+
+  const key = crypto.createHash('sha1').update(target.href).digest('hex');
+  const binPath = path.join(BG_CACHE_DIR, `${key}.bin`);
+  const metaPath = path.join(BG_CACHE_DIR, `${key}.meta`);
+
   try {
+    if (fs.existsSync(binPath) && fs.existsSync(metaPath)) {
+      res.set('Content-Type', fs.readFileSync(metaPath, 'utf8'));
+      res.set('Cache-Control', 'public, max-age=604800, immutable');
+      return fs.createReadStream(binPath).pipe(res);
+    }
+
     const response = await geocodeFetch(target.href, {
-      headers: { 'User-Agent': 'theARTofFLIGHT/2.0 (kiosk background fetch)' },
-      timeout: 20000,
-      size: 25 * 1024 * 1024
+      headers: { 'User-Agent': UA },
+      timeout: 25000,
+      size: 40 * 1024 * 1024
     });
     const type = response.headers.get('content-type') || '';
     if (!response.ok || !type.startsWith('image/')) {
       return res.status(502).json({ error: `Upstream returned ${response.status} ${type}` });
     }
+    // Buffer fully so the disk cache never stores a truncated stream
+    const buf = await response.buffer();
+    fs.writeFileSync(binPath, buf);
+    fs.writeFileSync(metaPath, type);
     res.set('Content-Type', type);
     res.set('Cache-Control', 'public, max-age=604800, immutable');
-    response.body.pipe(res);
+    res.send(buf);
   } catch (error) {
     console.error('Background fetch failed:', error.message);
     res.status(502).json({ error: 'Background fetch failed', message: error.message });
