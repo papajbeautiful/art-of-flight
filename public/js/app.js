@@ -16,6 +16,10 @@
 //   ?mode=reality        force a visualization mode for this session
 //   ?mock=1              serve a frozen flight fixture from the server
 //   ?deterministic=1     seeded random + default settings, for reproducible screenshots
+//   ?chrome=0            embed mode: hide all chrome (panel/pill/toast)
+//   ?homeMarker=1        show the home-location marker (session-only Look override)
+//   ?homeMarkerIcon=…    marker glyph (default 'crosshair')
+//   ?labels=off|minimal|standard|detailed   flight-info label density
 const URL_PARAMS = new URLSearchParams(window.location.search);
 window.__DETERMINISTIC__ = URL_PARAMS.get('deterministic') === '1';
 
@@ -81,6 +85,20 @@ class TheArtOfFlight {
     // ?mode= URL override (session-only; aliases accepted: waves/board/grid…)
     const urlMode = resolveModeKey(URL_PARAMS.get('mode'));
     if (urlMode) this.settingsManager.set('mode', urlMode);
+
+    // Session-only Look overrides for embeds (e.g. the Panarea dash overhead map):
+    //   ?homeMarker=1            show the home-location marker
+    //   ?homeMarkerIcon=<icon>   marker glyph (default 'crosshair')
+    //   ?labels=off|minimal|standard|detailed   flight-info label density
+    // Applied to the in-memory Look before first paint; never persisted.
+    const urlLook = this.settingsManager.settings.look;
+    if (urlLook) {
+      if (URL_PARAMS.get('homeMarker') === '1') urlLook.homeMarker = true;
+      const hmIcon = URL_PARAMS.get('homeMarkerIcon');
+      if (hmIcon) urlLook.homeMarkerIcon = hmIcon;
+      const urlLabels = URL_PARAMS.get('labels');
+      if (urlLabels && ['off', 'minimal', 'standard', 'detailed'].includes(urlLabels)) urlLook.labels = urlLabels;
+    }
 
     this.currentMode = this.settingsManager.get('mode');
     this.previousMode = null;
